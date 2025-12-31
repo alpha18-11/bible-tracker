@@ -1,13 +1,17 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { serve } from "https://deno.land/std@0.224.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+/* ================= CORS ================= */
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// CSV helper
+/* ================= CSV HELPER ================= */
+
 function arrayToCSV(data: any[], headers: string[]): string {
   const rows = [headers.join(",")];
 
@@ -29,22 +33,37 @@ function arrayToCSV(data: any[], headers: string[]): string {
   return rows.join("\n");
 }
 
+/* ================= MAIN ================= */
+
 serve(async (req) => {
+  /* ---- OPTIONS (CORS preflight) ---- */
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
+  if (req.method !== "POST") {
+    return new Response("Method Not Allowed", {
+      status: 405,
+      headers: corsHeaders,
+    });
+  }
+
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const anonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
+    /* ---- ENV ---- */
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
 
-    // 🔐 TWO CLIENTS (THIS IS CRITICAL)
-    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+    if (!supabaseUrl || !anonKey || !serviceKey) {
+      throw new Error("Missing Supabase environment variables");
+    }
+
+    /* ---- CLIENTS ---- */
     const supabaseAuth = createClient(supabaseUrl, anonKey);
+    const supabaseAdmin = createClient(supabaseUrl, serviceKey);
 
-    // 🔐 Validate user token using ANON client
-    const authHeader = req.headers.get("Authorization");
+    /* ---- AUTH ---- */
+    const authHeader = req.headers.get("authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
@@ -53,6 +72,7 @@ serve(async (req) => {
     }
 
     const token = authHeader.replace("Bearer ", "");
+
     const {
       data: { user },
       error: authError,
@@ -65,7 +85,7 @@ serve(async (req) => {
       });
     }
 
-    // 🔐 Admin check (service role)
+    /* ---- ADMIN CHECK ---- */
     const { data: role } = await supabaseAdmin
       .from("user_roles")
       .select("role")
@@ -80,7 +100,7 @@ serve(async (req) => {
       });
     }
 
-    // ✅ Fetch data (CORRECT COLUMNS)
+    /* ---- FETCH DATA ---- */
     const { data: profiles } = await supabaseAdmin
       .from("profiles")
       .select("*")
@@ -95,32 +115,30 @@ serve(async (req) => {
       .from("user_roles")
       .select("*");
 
-    // ✅ CSV generation
-    const profilesCSV = arrayToCSV(profiles || [], [
+    /* ---- CSV BUILD ---- */
+    const profilesCSV = arrayToCSV(profiles ?? [], [
       "id",
       "user_id",
       "full_name",
       "email",
-      "phone",
       "approval_status",
       "created_at",
-      "updated_at",
     ]);
 
-    const progressCSV = arrayToCSV(readingProgress || [], [
+    const progressCSV = arrayToCSV(readingProgress ?? [], [
       "id",
       "user_id",
       "day",
       "read_at",
     ]);
 
-    const rolesCSV = arrayToCSV(userRoles || [], [
+    const rolesCSV = arrayToCSV(userRoles ?? [], [
       "id",
       "user_id",
       "role",
     ]);
 
-    const combined =
+    const combinedCSV =
       "=== PROFILES ===\n" +
       profilesCSV +
       "\n\n=== READING_PROGRESS ===\n" +
@@ -128,7 +146,8 @@ serve(async (req) => {
       "\n\n=== USER_ROLES ===\n" +
       rolesCSV;
 
-    return new Response(combined, {
+    /* ---- RESPONSE ---- */
+    return new Response(combinedCSV, {
       headers: {
         ...corsHeaders,
         "Content-Type": "text/csv; charset=utf-8",
@@ -137,9 +156,12 @@ serve(async (req) => {
           .slice(0, 10)}.csv"`,
       },
     });
-  } catch (e) {
+  } catch (err) {
+    console.error("EXPORT ERROR:", err);
     return new Response(
-      JSON.stringify({ error: e instanceof Error ? e.message : "Error" }),
+      JSON.stringify({
+        error: err instanceof Error ? err.message : "Export failed",
+      }),
       { status: 500, headers: corsHeaders }
     );
   }
