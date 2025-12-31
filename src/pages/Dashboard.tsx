@@ -21,9 +21,12 @@ import {
 
 import bethesdaLogo from "@/assets/bethesda-logo.png";
 
+const TOTAL_DAYS = 365;
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, isAdmin, isPending, signOut } = useAuth();
+
   const {
     progress,
     markComplete,
@@ -34,12 +37,14 @@ export default function Dashboard() {
     missedDays,
   } = useReadingProgress();
 
+  const missedCount = TOTAL_DAYS - completedCount;
+
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
-  /* ================= CLICK HANDLERS ================= */
+  /* ================= HANDLERS ================= */
 
   const handleClick = useCallback(
     (day: number, completed: boolean) => {
@@ -124,12 +129,13 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* CONTENT */}
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED (SAME LINE ALWAYS) ===== */}
-        <div className="flex items-center gap-3 mb-4">
-          <Card className="flex-1 p-4">
+        {/* ===== PROGRESS + MISSED (ALWAYS ONE ROW) ===== */}
+        <div className="flex flex-nowrap items-center gap-3 mb-4 overflow-x-auto">
+
+          {/* PROGRESS */}
+          <Card className="flex-1 min-w-[240px] p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
             </p>
@@ -146,9 +152,10 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {missedDays.length > 0 && (
+          {/* MISSED — ALWAYS SHOWN IF < 365 */}
+          {missedCount > 0 && (
             <Card
-              className="cursor-pointer px-3 py-2 border-yellow-500/40 hover:bg-yellow-500/10 min-w-[90px]"
+              className="cursor-pointer px-3 py-2 min-w-[100px] border-yellow-500/40 hover:bg-yellow-500/10"
               onClick={() => {
                 setShowOnlyMissed(true);
                 const first = missedDays[0];
@@ -157,14 +164,15 @@ export default function Dashboard() {
                     behavior: "smooth",
                     block: "center",
                   });
-                }, 150);
+                }, 120);
               }}
             >
               <div className="flex items-center gap-1 text-yellow-500 text-xs font-medium">
-                <AlertCircle size={14} /> Missed
+                <AlertCircle size={14} />
+                Missed
               </div>
               <p className="text-[11px] text-muted-foreground text-center">
-                {missedDays.length}
+                {missedCount}
               </p>
             </Card>
           )}
