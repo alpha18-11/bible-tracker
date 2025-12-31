@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useReadingProgress } from "@/hooks/useReadingProgress";
@@ -21,9 +21,21 @@ import {
 
 import bethesdaLogo from "@/assets/bethesda-logo.png";
 
+/* ================= CONSTANTS ================= */
+
+const MONTHS = [
+  "January","February","March","April","May","June",
+  "July","August","September","October","November","December",
+];
+
+const MONTH_ABBR = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+/* ================= COMPONENT ================= */
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, isAdmin, isPending, signOut } = useAuth();
+
   const {
     progress,
     markComplete,
@@ -38,12 +50,7 @@ export default function Dashboard() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [viewMode, setViewMode] = useState<"month" | "missed">("month");
 
-  const months = [
-    "January","February","March","April","May","June",
-    "July","August","September","October","November","December",
-  ];
-
-  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
 
   /* ================= HANDLERS ================= */
 
@@ -61,25 +68,30 @@ export default function Dashboard() {
     [markIncomplete]
   );
 
-  /* ================= MONTH VIEW ================= */
+  /* ================= DATA DERIVATIONS ================= */
 
-  const monthPlan = readingPlan.filter(d => {
-    const m = d.date.split("-")[1];
-    return monthAbbrev.indexOf(m) === currentMonth;
-  });
+  const monthPlan = useMemo(
+    () =>
+      readingPlan.filter(d => {
+        const m = d.date.split("-")[1];
+        return MONTH_ABBR.indexOf(m) === currentMonth;
+      }),
+    [currentMonth]
+  );
 
-  /* ================= MISSED GROUPED BY MONTH ================= */
+  const missedByMonth = useMemo(() => {
+    const map: Record<number, typeof readingPlan> = {};
+    missedDays.forEach(dayNum => {
+      const item = readingPlan.find(d => d.dayNumber === dayNum);
+      if (!item) return;
+      const monthIndex = MONTH_ABBR.indexOf(item.date.split("-")[1]);
+      if (!map[monthIndex]) map[monthIndex] = [];
+      map[monthIndex].push(item);
+    });
+    return map;
+  }, [missedDays]);
 
-  const missedByMonth = readingPlan
-    .filter(d => missedDays.includes(d.dayNumber))
-    .reduce<Record<number, typeof readingPlan>>((acc, day) => {
-      const monthIndex = monthAbbrev.indexOf(day.date.split("-")[1]);
-      if (!acc[monthIndex]) acc[monthIndex] = [];
-      acc[monthIndex].push(day);
-      return acc;
-    }, {});
-
-  /* ================= PENDING ================= */
+  /* ================= PENDING STATE ================= */
 
   if (isPending) {
     return (
@@ -102,7 +114,8 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen gradient-bg">
-      {/* HEADER */}
+
+      {/* ================= HEADER ================= */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -130,41 +143,38 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* ================= CONTENT ================= */}
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED (ALIGNED) ===== */}
-        <div className="flex flex-col md:flex-row items-stretch gap-3 mb-4">
+        {/* ===== PROGRESS + MISSED (ONE LINE ALWAYS) ===== */}
+        <div className="flex flex-col md:flex-row gap-3 items-stretch mb-5">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
             </p>
-
-            <div className="h-3 bg-secondary rounded-full mt-2 overflow-hidden">
+            <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
               <div
                 className="h-full bg-primary transition-all"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
-
             <p className="text-xs text-right mt-1">
               {progressPercentage.toFixed(1)}%
             </p>
           </Card>
 
-          {missedDays.length > 0 && (
-            <Card
-              className="cursor-pointer p-4 min-w-[220px] flex flex-col justify-center border-yellow-500/40 hover:bg-yellow-500/10"
-              onClick={() => setViewMode("missed")}
-            >
-              <div className="flex items-center gap-2 text-yellow-500 text-sm font-semibold">
-                <AlertCircle size={18} />
-                Missed Readings
-              </div>
-              <p className="text-2xl font-bold mt-1">
-                {missedDays.length}
-              </p>
-            </Card>
-          )}
+          <Card
+            className="cursor-pointer p-4 min-w-[220px] flex flex-col justify-center
+                       border-yellow-500/40 hover:bg-yellow-500/10"
+            onClick={() => setViewMode("missed")}
+          >
+            <div className="flex items-center gap-2 text-yellow-500 text-sm font-semibold">
+              <AlertCircle size={18} /> Missed Readings
+            </div>
+            <p className="text-2xl font-bold mt-1">
+              {missedDays.length}
+            </p>
+          </Card>
         </div>
 
         {/* ===== MONTH NAV ===== */}
@@ -172,6 +182,7 @@ export default function Dashboard() {
           <Button
             variant="ghost"
             size="sm"
+            disabled={viewMode === "missed"}
             onClick={() => {
               setViewMode("month");
               setCurrentMonth(m => (m === 0 ? 11 : m - 1));
@@ -181,12 +192,15 @@ export default function Dashboard() {
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {viewMode === "missed" ? "Missed Readings" : months[currentMonth]}
+            {viewMode === "missed"
+              ? "Missed Readings (All Months)"
+              : MONTHS[currentMonth]}
           </h2>
 
           <Button
             variant="ghost"
             size="sm"
+            disabled={viewMode === "missed"}
             onClick={() => {
               setViewMode("month");
               setCurrentMonth(m => (m === 11 ? 0 : m + 1));
@@ -207,13 +221,18 @@ export default function Dashboard() {
 
           <CardContent>
             <ScrollArea className="h-[75vh] pr-3">
-              <div className="space-y-4">
 
-                {viewMode === "missed" ? (
+              {/* ===== MISSED VIEW ===== */}
+              {viewMode === "missed" ? (
+                Object.keys(missedByMonth).length === 0 ? (
+                  <p className="text-center text-muted-foreground py-10">
+                    🎉 No missed readings. Excellent discipline!
+                  </p>
+                ) : (
                   Object.entries(missedByMonth).map(([monthIndex, days]) => (
-                    <div key={monthIndex}>
-                      <h3 className="font-semibold mb-2">
-                        {months[Number(monthIndex)]}
+                    <div key={monthIndex} className="mb-6">
+                      <h3 className="font-semibold mb-3 text-primary">
+                        {MONTHS[Number(monthIndex)]}
                       </h3>
 
                       <div className="space-y-2">
@@ -237,50 +256,60 @@ export default function Dashboard() {
                       </div>
                     </div>
                   ))
-                ) : (
-                  monthPlan.map(day => {
-                    const completed = progress.get(day.dayNumber) || false;
-                    const past = day.dayNumber < currentDayNumber;
+                )
+              ) : (
 
-                    return (
-                      <div
-                        key={day.dayNumber}
-                        onClick={() => handleClick(day.dayNumber, completed)}
-                        onDoubleClick={() => handleDoubleClick(day.dayNumber, completed)}
-                        className={`flex gap-3 p-3 rounded-lg cursor-pointer border transition
-                          ${completed
-                            ? "bg-green-900/20 border-green-700/30"
-                            : past
-                            ? "bg-secondary/40 border-border/40"
-                            : "bg-secondary/60 border-border/60"}
-                        `}
-                      >
-                        <Checkbox checked={completed} disabled={isLoading} />
+              /* ===== MONTH VIEW ===== */
+              <div className="space-y-2">
+                {monthPlan.map(day => {
+                  const completed = progress.get(day.dayNumber) || false;
+                  const past = day.dayNumber < currentDayNumber;
 
-                        <div className="flex-1 space-y-1.5">
-                          <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
-                            <span className="text-primary">Day {day.dayNumber}</span>
-                            <span className="text-muted-foreground ml-2">
-                              ({day.date})
-                            </span>
-                          </div>
+                  return (
+                    <div
+                      key={day.dayNumber}
+                      ref={el => {
+                        if (!completed && past) {
+                          missedRefMap.current[day.dayNumber] = el;
+                        }
+                      }}
+                      onClick={() => handleClick(day.dayNumber, completed)}
+                      onDoubleClick={() => handleDoubleClick(day.dayNumber, completed)}
+                      className={`flex gap-3 p-3 rounded-lg cursor-pointer border transition
+                        ${completed
+                          ? "bg-green-900/20 border-green-700/30"
+                          : past
+                          ? "bg-secondary/40 border-border/40"
+                          : "bg-secondary/60 border-border/60"}
+                      `}
+                    >
+                      <Checkbox checked={completed} disabled={isLoading} />
 
-                          <p className="text-[15px] font-medium">
-                            {day.english}
-                          </p>
-
-                          <p className="text-[14px] text-muted-foreground">
-                            {day.telugu}
-                          </p>
+                      <div className="flex-1 space-y-1.5">
+                        <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
+                          <span className="text-primary">Day {day.dayNumber}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({day.date})
+                          </span>
                         </div>
 
-                        {completed && <Check className="text-green-500 mt-1" size={18} />}
-                      </div>
-                    );
-                  })
-                )}
+                        <p className="text-[15px] font-medium">
+                          {day.english}
+                        </p>
 
+                        <p className="text-[14px] text-muted-foreground">
+                          {day.telugu}
+                        </p>
+                      </div>
+
+                      {completed && (
+                        <Check className="text-green-500 mt-1" size={18} />
+                      )}
+                    </div>
+                  );
+                })}
               </div>
+              )}
             </ScrollArea>
           </CardContent>
         </Card>
