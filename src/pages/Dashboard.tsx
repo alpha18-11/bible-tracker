@@ -1,13 +1,13 @@
-import React, { useState, useCallback, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { useAuth } from '@/hooks/useAuth';
-import { useReadingProgress } from '@/hooks/useReadingProgress';
-import { readingPlan, getCurrentDayNumber } from '@/data/readingPlan';
+import React, { useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "@/hooks/useAuth";
+import { useReadingProgress } from "@/hooks/useReadingProgress";
+import { readingPlan, getCurrentDayNumber } from "@/data/readingPlan";
 
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Checkbox } from '@/components/ui/checkbox';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
   LogOut,
@@ -17,9 +17,9 @@ import {
   AlertCircle,
   ChevronLeft,
   ChevronRight,
-} from 'lucide-react';
+} from "lucide-react";
 
-import bethesdaLogo from '@/assets/bethesda-logo.png';
+import bethesdaLogo from "@/assets/bethesda-logo.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -37,6 +37,9 @@ export default function Dashboard() {
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [showOnlyMissed, setShowOnlyMissed] = useState(false);
+
+  /* ================= CLICK HANDLERS ================= */
 
   const handleClick = useCallback(
     (day: number, completed: boolean) => {
@@ -52,17 +55,25 @@ export default function Dashboard() {
     [markIncomplete]
   );
 
+  /* ================= MONTH FILTER ================= */
+
   const months = [
-    'January','February','March','April','May','June',
-    'July','August','September','October','November','December'
+    "January","February","March","April","May","June",
+    "July","August","September","October","November","December",
   ];
 
-  const monthAbbrev = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const filteredPlan = readingPlan.filter(d => {
-    const m = d.date.split('-')[1];
+  const monthPlan = readingPlan.filter(d => {
+    const m = d.date.split("-")[1];
     return monthAbbrev.indexOf(m) === currentMonth;
   });
+
+  const filteredPlan = showOnlyMissed
+    ? monthPlan.filter(d => missedDays.includes(d.dayNumber))
+    : monthPlan;
+
+  /* ================= PENDING ================= */
 
   if (isPending) {
     return (
@@ -80,6 +91,8 @@ export default function Dashboard() {
       </div>
     );
   }
+
+  /* ================= UI ================= */
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -100,7 +113,7 @@ export default function Dashboard() {
 
           <div className="flex gap-2">
             {isAdmin && (
-              <Button variant="outline" onClick={() => navigate('/admin')}>
+              <Button variant="outline" onClick={() => navigate("/admin")}>
                 <Shield size={16} className="mr-2" /> Admin
               </Button>
             )}
@@ -111,19 +124,23 @@ export default function Dashboard() {
         </div>
       </header>
 
+      {/* CONTENT */}
       <main className="container mx-auto px-4 py-5">
-        {/* TOP SUMMARY */}
-        <div className="flex flex-col md:flex-row gap-3 mb-4">
+
+        {/* ===== PROGRESS + MISSED (SAME LINE ALWAYS) ===== */}
+        <div className="flex items-center gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
             </p>
+
             <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
               <div
                 className="h-full bg-primary transition-all"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
+
             <p className="text-xs text-right mt-1">
               {progressPercentage.toFixed(1)}%
             </p>
@@ -131,37 +148,59 @@ export default function Dashboard() {
 
           {missedDays.length > 0 && (
             <Card
-              className="cursor-pointer px-4 py-3 min-w-[180px] border-yellow-500/40 hover:bg-yellow-500/10"
+              className="cursor-pointer px-3 py-2 border-yellow-500/40 hover:bg-yellow-500/10 min-w-[90px]"
               onClick={() => {
+                setShowOnlyMissed(true);
                 const first = missedDays[0];
-                missedRefMap.current[first]?.scrollIntoView({
-                  behavior: 'smooth',
-                  block: 'center',
-                });
+                setTimeout(() => {
+                  missedRefMap.current[first]?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }, 150);
               }}
             >
-              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
-                <AlertCircle size={16} /> Missed
+              <div className="flex items-center gap-1 text-yellow-500 text-xs font-medium">
+                <AlertCircle size={14} /> Missed
               </div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {missedDays.length} day{missedDays.length > 1 && 's'}
+              <p className="text-[11px] text-muted-foreground text-center">
+                {missedDays.length}
               </p>
             </Card>
           )}
         </div>
 
-        {/* MONTH NAV */}
+        {/* ===== MONTH NAV ===== */}
         <div className="flex justify-between items-center mb-3">
-          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(m => m === 0 ? 11 : m - 1)}>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setShowOnlyMissed(false);
+              setCurrentMonth(m => (m === 0 ? 11 : m - 1));
+            }}
+          >
             <ChevronLeft size={16} /> Prev
           </Button>
-          <h2 className="text-lg font-semibold">{months[currentMonth]}</h2>
-          <Button variant="ghost" size="sm" onClick={() => setCurrentMonth(m => m === 11 ? 0 : m + 1)}>
+
+          <h2 className="text-lg font-semibold">
+            {months[currentMonth]}
+            {showOnlyMissed && " • Missed"}
+          </h2>
+
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setShowOnlyMissed(false);
+              setCurrentMonth(m => (m === 11 ? 0 : m + 1));
+            }}
+          >
             Next <ChevronRight size={16} />
           </Button>
         </div>
 
-        {/* DAILY PLAN */}
+        {/* ===== DAILY PLAN ===== */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
@@ -189,17 +228,16 @@ export default function Dashboard() {
                       onDoubleClick={() => handleDoubleClick(day.dayNumber, completed)}
                       className={`flex gap-3 p-3 rounded-lg cursor-pointer border transition
                         ${completed
-                          ? 'bg-green-900/20 border-green-700/30'
+                          ? "bg-green-900/20 border-green-700/30"
                           : past
-                          ? 'bg-secondary/40 border-border/40'
-                          : 'bg-secondary/60 border-border/60'}
+                          ? "bg-secondary/40 border-border/40"
+                          : "bg-secondary/60 border-border/60"}
                       `}
                     >
                       <Checkbox checked={completed} disabled={isLoading} className="mt-1" />
 
-                      {/* TEXT BLOCK (FIXED SPACING) */}
                       <div className="flex-1 space-y-1.5">
-                        <div className={`text-sm font-semibold ${completed && 'line-through text-muted-foreground'}`}>
+                        <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
                           <span className="text-primary">Day {day.dayNumber}</span>
                           <span className="text-muted-foreground ml-2">
                             ({day.date})
