@@ -36,6 +36,7 @@ export default function Dashboard() {
 
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
+
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
@@ -106,7 +107,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED (ALWAYS VISIBLE) ===== */}
+        {/* ===== PROGRESS + MISSED ===== */}
         <div className="flex items-center gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
@@ -125,32 +126,28 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {/* 🔥 MISSED BLOCK – NEVER DISAPPEARS */}
-          <Card
-            className={`px-4 py-3 border-yellow-500/40 ${
-              missedDays.length > 0
-                ? "cursor-pointer hover:bg-yellow-500/10"
-                : "opacity-60"
-            }`}
-            onClick={() => {
-              if (missedDays.length === 0) return;
-              setShowOnlyMissed(true);
-              const first = missedDays[0];
-              setTimeout(() => {
-                missedRefMap.current[first]?.scrollIntoView({
-                  behavior: "smooth",
-                  block: "center",
-                });
-              }, 100);
-            }}
-          >
-            <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
-              <AlertCircle size={16} /> Missed
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 text-center">
-              {missedDays.length}
-            </p>
-          </Card>
+          {missedDays.length > 0 && (
+            <Card
+              className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
+              onClick={() => {
+                setShowOnlyMissed(true);
+                const first = missedDays[0];
+                setTimeout(() => {
+                  missedRefMap.current[first]?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }, 120);
+              }}
+            >
+              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
+                <AlertCircle size={16} /> Missed
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                {missedDays.length} day{missedDays.length > 1 && "s"}
+              </p>
+            </Card>
+          )}
         </div>
 
         {/* ===== MONTH NAV ===== */}
@@ -187,7 +184,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Click checkbox to mark complete / undo
+              Tick checkbox to mark complete / undo
             </p>
           </CardHeader>
 
@@ -206,7 +203,7 @@ export default function Dashboard() {
                           missedRefMap.current[day.dayNumber] = el;
                         }
                       }}
-                      className={`flex gap-3 p-3 rounded-lg border
+                      className={`flex gap-3 p-3 rounded-lg border relative pointer-events-none
                         ${completed
                           ? "bg-green-900/20 border-green-700/30"
                           : past
@@ -214,21 +211,22 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ NATIVE CHECKBOX (FIXED FOREVER) */}
+                      {/* ✅ CLICKABLE CHECKBOX (FIXED) */}
                       <input
                         type="checkbox"
                         checked={completed}
                         disabled={isLoading}
                         onChange={(e) => {
+                          e.stopPropagation();
                           if (isLoading) return;
                           e.target.checked
                             ? markComplete(day.dayNumber)
                             : markIncomplete(day.dayNumber);
                         }}
-                        className="h-5 w-5 mt-1 cursor-pointer accent-purple-500"
+                        className="pointer-events-auto mt-1 h-5 w-5 cursor-pointer accent-primary"
                       />
 
-                      <div className="flex-1 space-y-1.5">
+                      <div className="flex-1 space-y-1.5 pointer-events-none">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
                           <span className="text-primary">Day {day.dayNumber}</span>
                           <span className="text-muted-foreground ml-2">
@@ -245,9 +243,7 @@ export default function Dashboard() {
                         </p>
                       </div>
 
-                      {completed && (
-                        <Check className="text-green-500 mt-1" size={18} />
-                      )}
+                      {completed && <Check className="text-green-500 mt-1" size={18} />}
                     </div>
                   );
                 })}
