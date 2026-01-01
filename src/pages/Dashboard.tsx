@@ -126,28 +126,18 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {missedDays.length > 0 && (
-            <Card
-              className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
-              onClick={() => {
-                setShowOnlyMissed(true);
-                const first = missedDays[0];
-                setTimeout(() => {
-                  missedRefMap.current[first]?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  });
-                }, 100);
-              }}
-            >
-              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
-                <AlertCircle size={16} /> Missed
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                {missedDays.length} day{missedDays.length > 1 && "s"}
-              </p>
-            </Card>
-          )}
+          {/* ✅ ALWAYS SHOW MISSED */}
+          <Card
+            className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
+            onClick={() => setShowOnlyMissed(true)}
+          >
+            <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
+              <AlertCircle size={16} /> Missed
+            </div>
+            <p className="text-xs text-muted-foreground mt-1 text-center">
+              {missedDays.length}
+            </p>
+          </Card>
         </div>
 
         {/* ===== MONTH NAV ===== */}
@@ -211,23 +201,17 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* 🔥 FIXED CHECKBOX */}
-                      <div
-                        onClick={(e) => {
-                          e.stopPropagation();
+                      {/* ✅ REAL FIXED CHECKBOX */}
+                      <Checkbox
+                        checked={completed}
+                        disabled={isLoading}
+                        onCheckedChange={(checked) => {
                           if (isLoading) return;
-
-                          completed
-                            ? markIncomplete(day.dayNumber)
-                            : markComplete(day.dayNumber);
+                          checked
+                            ? markComplete(day.dayNumber)
+                            : markIncomplete(day.dayNumber);
                         }}
-                        className="cursor-pointer"
-                      >
-                        <Checkbox
-                          checked={completed}
-                          disabled={isLoading}
-                        />
-                      </div>
+                      />
 
                       <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
