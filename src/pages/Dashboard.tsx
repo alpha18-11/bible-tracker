@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useReadingProgress } from "@/hooks/useReadingProgress";
@@ -6,7 +6,6 @@ import { readingPlan, getCurrentDayNumber } from "@/data/readingPlan";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
@@ -20,20 +19,6 @@ import {
 } from "lucide-react";
 
 import bethesdaLogo from "@/assets/bethesda-logo.png";
-
-/**
- * ============================================================
- * DASHBOARD — FROZEN VERSION
- * ============================================================
- * ✔ Checkbox click fixed (ScrollArea pointer-events issue)
- * ✔ Missed section always visible
- * ✔ No logic rewrites
- * ✔ No Supabase changes
- * ✔ Safe against regression
- *
- * ⚠️ DO NOT TOUCH CHECKBOX / MISSED LOGIC
- * ============================================================
- */
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -50,35 +35,23 @@ export default function Dashboard() {
   } = useReadingProgress();
 
   const currentDayNumber = getCurrentDayNumber();
-  const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
-
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [showOnlyMissed, setShowOnlyMissed] = useState(false);
+  const [showMissed, setShowMissed] = useState(false);
 
   const months = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December",
   ];
 
-  const monthAbbrev = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec",
-  ];
+  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const monthPlan = readingPlan.filter(d => {
-    const m = d.date.split("-")[1];
-    return monthAbbrev.indexOf(m) === currentMonth;
-  });
+  const monthPlan = readingPlan.filter(d =>
+    monthAbbrev.indexOf(d.date.split("-")[1]) === currentMonth
+  );
 
-  /**
-   * 🔒 CRITICAL
-   * Missed must come from FULL readingPlan
-   */
-  const filteredPlan = showOnlyMissed
+  const visiblePlan = showMissed
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
-
-  /* ================= PENDING ================= */
 
   if (isPending) {
     return (
@@ -99,7 +72,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen gradient-bg">
-      {/* HEADER */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -129,8 +102,8 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED ===== */}
-        <div className="flex items-center gap-3 mb-4">
+        {/* Progress + Missed */}
+        <div className="flex gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
@@ -138,7 +111,7 @@ export default function Dashboard() {
 
             <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
               <div
-                className="h-full bg-primary transition-all"
+                className="h-full bg-primary"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
@@ -148,29 +121,28 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {/* 🔒 Missed block must NEVER depend on month */}
           {missedDays.length > 0 && (
             <Card
               className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
-              onClick={() => setShowOnlyMissed(true)}
+              onClick={() => setShowMissed(true)}
             >
-              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
+              <div className="flex items-center gap-2 text-yellow-500">
                 <AlertCircle size={16} /> Missed
               </div>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
+              <p className="text-xs text-muted-foreground text-center mt-1">
                 {missedDays.length} day{missedDays.length > 1 && "s"}
               </p>
             </Card>
           )}
         </div>
 
-        {/* ===== MONTH NAV ===== */}
+        {/* Month Nav */}
         <div className="flex justify-between items-center mb-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setShowMissed(false);
               setCurrentMonth(m => (m === 0 ? 11 : m - 1));
             }}
           >
@@ -178,14 +150,14 @@ export default function Dashboard() {
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {showOnlyMissed ? "Missed Readings" : months[currentMonth]}
+            {showMissed ? "Missed Readings" : months[currentMonth]}
           </h2>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setShowMissed(false);
               setCurrentMonth(m => (m === 11 ? 0 : m + 1));
             }}
           >
@@ -193,79 +165,50 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* ===== DAILY PLAN ===== */}
+        {/* Reading Plan */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Click checkbox to mark complete / undo
-            </p>
           </CardHeader>
 
           <CardContent>
             <ScrollArea className="h-[75vh] pr-3">
               <div className="space-y-2">
-                {filteredPlan.map(day => {
+                {visiblePlan.map(day => {
                   const completed = progress.has(day.dayNumber);
-                  const past = day.dayNumber < currentDayNumber;
 
                   return (
-                    <div
+                    <label
                       key={day.dayNumber}
-                      ref={el => {
-                        if (!completed && past) {
-                          missedRefMap.current[day.dayNumber] = el;
-                        }
-                      }}
-                      className={`flex gap-3 p-3 rounded-lg border
+                      className={`flex gap-3 p-3 rounded-lg border cursor-pointer
                         ${completed
                           ? "bg-green-900/20 border-green-700/30"
-                          : past
-                          ? "bg-secondary/40 border-border/40"
-                          : "bg-secondary/60 border-border/60"}
+                          : "bg-secondary/50 border-border"}
                       `}
                     >
-                      {/* =====================================================
-                          🔒 FINAL FIX — DO NOT TOUCH
-                          Required for ScrollArea pointer-events
-                          ===================================================== */}
-                      <div className="pointer-events-auto mt-1">
-                        <Checkbox
-                          checked={completed}
-                          disabled={isLoading}
-                          onCheckedChange={(checked) => {
-                            if (isLoading) return;
-                            if (checked === true) {
-                              markComplete(day.dayNumber);
-                            } else {
-                              markIncomplete(day.dayNumber);
-                            }
-                          }}
-                          className="cursor-pointer"
-                        />
-                      </div>
+                      {/* ✅ Native checkbox — bulletproof */}
+                      <input
+                        type="checkbox"
+                        checked={completed}
+                        disabled={isLoading}
+                        onChange={() =>
+                          completed
+                            ? markIncomplete(day.dayNumber)
+                            : markComplete(day.dayNumber)
+                        }
+                        className="mt-1 h-4 w-4 accent-purple-500"
+                      />
 
-                      <div className="flex-1 space-y-1.5">
-                        <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
-                          <span className="text-primary">Day {day.dayNumber}</span>
-                          <span className="text-muted-foreground ml-2">
-                            ({day.date})
-                          </span>
+                      <div className="flex-1">
+                        <div className="text-sm font-semibold">
+                          Day {day.dayNumber} ({day.date})
                         </div>
-
-                        <p className="text-[15px] leading-snug font-medium">
-                          {day.english}
-                        </p>
-
-                        <p className="text-[14px] leading-snug text-muted-foreground">
-                          {day.telugu}
-                        </p>
+                        <p className="font-medium">{day.english}</p>
+                        <p className="text-sm text-muted-foreground">{day.telugu}</p>
                       </div>
 
-                      {completed && (
-                        <Check className="text-green-500 mt-1" size={18} />
-                      )}
-                    </div>
+                      {completed && <Check className="text-green-500 mt-1" size={18} />}
+                    </label>
                   );
                 })}
               </div>
