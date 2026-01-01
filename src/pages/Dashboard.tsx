@@ -75,8 +75,6 @@ export default function Dashboard() {
     );
   }
 
-  /* ================= UI ================= */
-
   return (
     <div className="min-h-screen gradient-bg">
       {/* HEADER */}
@@ -186,7 +184,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Tap checkbox to mark complete / undo
+              Click checkbox to mark complete / undo
             </p>
           </CardHeader>
 
@@ -205,7 +203,7 @@ export default function Dashboard() {
                           missedRefMap.current[day.dayNumber] = el;
                         }
                       }}
-                      className={`flex gap-3 p-3 rounded-lg border transition
+                      className={`flex gap-3 p-3 rounded-lg border
                         ${completed
                           ? "bg-green-900/20 border-green-700/30"
                           : past
@@ -213,18 +211,23 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ CLICKABLE CHECKBOX */}
-                      <Checkbox
-                        checked={completed}
-                        onCheckedChange={(checked) => {
-                          if (checked) {
-                            markComplete(day.dayNumber);
-                          } else {
-                            markIncomplete(day.dayNumber);
-                          }
+                      {/* 🔥 FIXED CHECKBOX */}
+                      <div
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (isLoading) return;
+
+                          completed
+                            ? markIncomplete(day.dayNumber)
+                            : markComplete(day.dayNumber);
                         }}
-                        className="mt-1 cursor-pointer"
-                      />
+                        className="cursor-pointer"
+                      >
+                        <Checkbox
+                          checked={completed}
+                          disabled={isLoading}
+                        />
+                      </div>
 
                       <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
