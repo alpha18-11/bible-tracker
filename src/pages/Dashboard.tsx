@@ -14,7 +14,6 @@ import {
   Shield,
   Check,
   Clock,
-  AlertCircle,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -37,6 +36,7 @@ export default function Dashboard() {
 
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
+
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   const monthAbbrev = [
     "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
+    "Jul","Aug","Sep","Oct","Nov","Dec",
   ];
 
   const monthPlan = readingPlan.filter(d => {
@@ -55,10 +55,12 @@ export default function Dashboard() {
     return monthAbbrev.indexOf(m) === currentMonth;
   });
 
-  // 🔥 CRITICAL: missed must come from FULL PLAN
+  /* 🔒 CRITICAL: missed must be filtered from FULL plan */
   const filteredPlan = showOnlyMissed
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
+
+  /* ================= PENDING ================= */
 
   if (isPending) {
     return (
@@ -79,6 +81,7 @@ export default function Dashboard() {
 
   return (
     <div className="min-h-screen gradient-bg">
+      {/* HEADER */}
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
@@ -108,39 +111,45 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* PROGRESS + MISSED */}
-        <div className="flex items-center gap-3 mb-4">
+        {/* ===== PROGRESS + MISSED ===== */}
+        <div className="flex gap-3 mb-4">
+          {/* PROGRESS */}
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
             </p>
+
             <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
               <div
                 className="h-full bg-primary transition-all"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
+
             <p className="text-xs text-right mt-1">
               {progressPercentage.toFixed(1)}%
             </p>
           </Card>
 
-          {missedDays.length > 0 && (
-            <Card
-              className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
-              onClick={() => setShowOnlyMissed(true)}
-            >
-              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
-                <AlertCircle size={16} /> Missed
-              </div>
-              <p className="text-xs text-muted-foreground mt-1 text-center">
-                {missedDays.length} day{missedDays.length > 1 && "s"}
-              </p>
-            </Card>
-          )}
+          {/* MISSED */}
+          <Card
+            className={`w-[140px] p-4 cursor-pointer transition
+              ${showOnlyMissed
+                ? "border-yellow-500 bg-yellow-500/10"
+                : "border-border hover:bg-secondary/40"}
+            `}
+            onClick={() => setShowOnlyMissed(prev => !prev)}
+          >
+            <div className="text-yellow-500 text-sm font-medium text-center">
+              Missed
+            </div>
+            <p className="text-2xl font-semibold text-center mt-2">
+              {missedDays.length}
+            </p>
+          </Card>
         </div>
 
-        {/* MONTH NAV */}
+        {/* ===== MONTH NAV ===== */}
         <div className="flex justify-between items-center mb-3">
           <Button
             variant="ghost"
@@ -169,10 +178,13 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* DAILY PLAN */}
+        {/* ===== DAILY PLAN ===== */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Click checkbox to mark complete / undo
+            </p>
           </CardHeader>
 
           <CardContent>
@@ -198,6 +210,7 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
+                      {/* ✅ SAFE RADIX CHECKBOX */}
                       <Checkbox
                         checked={completed}
                         disabled={isLoading}
@@ -212,13 +225,24 @@ export default function Dashboard() {
 
                       <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
-                          Day {day.dayNumber} ({day.date})
+                          <span className="text-primary">Day {day.dayNumber}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({day.date})
+                          </span>
                         </div>
-                        <p className="text-sm">{day.english}</p>
-                        <p className="text-xs text-muted-foreground">{day.telugu}</p>
+
+                        <p className="text-[15px] leading-snug font-medium">
+                          {day.english}
+                        </p>
+
+                        <p className="text-[14px] leading-snug text-muted-foreground">
+                          {day.telugu}
+                        </p>
                       </div>
 
-                      {completed && <Check className="text-green-500 mt-1" size={18} />}
+                      {completed && (
+                        <Check className="text-green-500 mt-1" size={18} />
+                      )}
                     </div>
                   );
                 })}
