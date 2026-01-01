@@ -9,7 +9,6 @@ export const useReadingProgress = () => {
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
-  /* ================= FETCH ================= */
   const fetchProgress = useCallback(async () => {
     if (!user || !isApproved) {
       setProgress(new Map());
@@ -17,99 +16,87 @@ export const useReadingProgress = () => {
       return;
     }
 
-    try {
-      const { data, error } = await supabase
-        .from("reading_progress")
-        .select("day")
-        .eq("user_id", user.id);
+    setIsLoading(true);
 
-      if (error) throw error;
+    const { data, error } = await supabase
+      .from("reading_progress")
+      .select("day")
+      .eq("user_id", user.id);
 
-      const map = new Map<number, boolean>();
-      data?.forEach(row => map.set(row.day, true));
-
-      setProgress(map);
-    } catch (err) {
-      console.error(err);
-      toast({
-        title: "Error",
-        description: "Failed to fetch reading progress",
-        variant: "destructive",
-      });
-    } finally {
+    if (error) {
+      toast({ title: "Failed to load progress", variant: "destructive" });
       setIsLoading(false);
+      return;
     }
+
+    const map = new Map<number, boolean>();
+    data?.forEach((d) => map.set(d.day, true));
+
+    setProgress(map);
+    setIsLoading(false);
   }, [user, isApproved]);
 
   useEffect(() => {
     fetchProgress();
   }, [fetchProgress]);
 
-  /* ================= MARK COMPLETE ================= */
   const markComplete = async (day: number) => {
-    if (!user || !isApproved || progress.has(day)) return;
+    if (!user || progress.has(day)) return;
 
-    setProgress(prev => new Map(prev).set(day, true));
+    setProgress((p) => new Map(p).set(day, true));
 
-    try {
-      const { error } = await supabase.from("reading_progress").insert({
-        user_id: user.id,
-        day,
-        read_at: new Date().toISOString(),
-      });
-      if (error) throw error;
-    } catch {
-      setProgress(prev => {
-        const copy = new Map(prev);
-        copy.delete(day);
-        return copy;
-      });
-    }
-  };
-
-  /* ================= MARK INCOMPLETE ================= */
-  const markIncomplete = async (day: number) => {
-    if (!user || !isApproved || !progress.has(day)) return;
-
-    setProgress(prev => {
-      const copy = new Map(prev);
-      copy.delete(day);
-      return copy;
+    const { error } = await supabase.from("reading_progress").insert({
+      user_id: user.id,
+      day,
+      read_at: new Date().toISOString(),
     });
 
-    try {
-      const { error } = await supabase
-        .from("reading_progress")
-        .delete()
-        .eq("user_id", user.id)
-        .eq("day", day);
-      if (error) throw error;
-    } catch {
-      setProgress(prev => new Map(prev).set(day, true));
+    if (error) {
+      setProgress((p) => {
+        const m = new Map(p);
+        m.delete(day);
+        return m;
+      });
+      toast({ title: "Failed to mark complete", variant: "destructive" });
     }
   };
 
-  /* ================= CORRECT MISSED LOGIC ================= */
-  const getMissedDays = () => {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), 0, 1);
+  const markIncomplete = async (day: number) => {
+    if (!user || !progress.has(day)) return;
 
-    const todayDay =
-      Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+    setProgress((p) => {
+      const m = new Map(p);
+      m.delete(day);
+      return m;
+    });
 
-    const missed: number[] = [];
+    const { error } = await supabase
+      .from("reading_progress")
+      .delete()
+      .eq("user_id", user.id)
+      .eq("day", day);
 
-    for (let day = 1; day < todayDay; day++) {
-      if (!progress.has(day)) {
-        missed.push(day);
-      }
+    if (error) {
+      setProgress((p) => new Map(p).set(day, true));
+      toast({ title: "Failed to undo", variant: "destructive" });
     }
-
-    return missed;
   };
 
   const completedCount = progress.size;
   const progressPercentage = (completedCount / 365) * 100;
+
+  const getMissedDays = () => {
+    const today = new Date();
+    const start = new Date(today.getFullYear(), 0, 1);
+    const todayDay =
+      Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+
+    const missed: number[] = [];
+    for (let i = 1; i < todayDay; i++) {
+      if (!progress.has(i)) missed.push(i);
+    }
+    return missed;
+  };
 
   return {
     progress,
@@ -119,6 +106,5 @@ export const useReadingProgress = () => {
     completedCount,
     progressPercentage,
     missedDays: getMissedDays(),
-    refreshProgress: fetchProgress,
   };
 };
