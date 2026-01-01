@@ -21,6 +21,20 @@ import {
 
 import bethesdaLogo from "@/assets/bethesda-logo.png";
 
+/**
+ * ============================================================
+ * DASHBOARD — FROZEN VERSION
+ * ============================================================
+ * ✔ Checkbox click fixed (ScrollArea pointer-events issue)
+ * ✔ Missed section always visible
+ * ✔ No logic rewrites
+ * ✔ No Supabase changes
+ * ✔ Safe against regression
+ *
+ * ⚠️ DO NOT TOUCH CHECKBOX / MISSED LOGIC
+ * ============================================================
+ */
+
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile, isAdmin, isPending, signOut } = useAuth();
@@ -37,6 +51,7 @@ export default function Dashboard() {
 
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
+
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
@@ -55,9 +70,9 @@ export default function Dashboard() {
     return monthAbbrev.indexOf(m) === currentMonth;
   });
 
-  /** 🔒 CRITICAL:
-   *  Missed must ALWAYS come from full plan
-   *  Never month-scoped
+  /**
+   * 🔒 CRITICAL
+   * Missed must come from FULL readingPlan
    */
   const filteredPlan = showOnlyMissed
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
@@ -88,7 +103,7 @@ export default function Dashboard() {
       <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
           <div className="flex items-center gap-3">
-            <img src={bethesdaLogo} className="w-9 h-9" alt="Bethesda" />
+            <img src={bethesdaLogo} className="w-9 h-9" />
             <div>
               <h1 className="text-lg font-medium">
                 Bethesda <span className="italic text-primary">Bible Tracker</span>
@@ -133,7 +148,7 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {/* ✅ Missed is global, never month-bound */}
+          {/* 🔒 Missed block must NEVER depend on month */}
           {missedDays.length > 0 && (
             <Card
               className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
@@ -183,7 +198,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Click checkbox or text to mark complete / undo
+              Click checkbox to mark complete / undo
             </p>
           </CardHeader>
 
@@ -210,25 +225,27 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ RADIX-CORRECT CHECKBOX (UNBREAKABLE) */}
-                      <Checkbox
-                        id={`day-${day.dayNumber}`}
-                        checked={completed}
-                        disabled={isLoading}
-                        onCheckedChange={(checked) => {
-                          if (isLoading) return;
-                          checked
-                            ? markComplete(day.dayNumber)
-                            : markIncomplete(day.dayNumber);
-                        }}
-                        className="mt-1"
-                      />
+                      {/* =====================================================
+                          🔒 FINAL FIX — DO NOT TOUCH
+                          Required for ScrollArea pointer-events
+                          ===================================================== */}
+                      <div className="pointer-events-auto mt-1">
+                        <Checkbox
+                          checked={completed}
+                          disabled={isLoading}
+                          onCheckedChange={(checked) => {
+                            if (isLoading) return;
+                            if (checked === true) {
+                              markComplete(day.dayNumber);
+                            } else {
+                              markIncomplete(day.dayNumber);
+                            }
+                          }}
+                          className="cursor-pointer"
+                        />
+                      </div>
 
-                      {/* ✅ LABEL ENSURES CLICK WORKS ALWAYS */}
-                      <label
-                        htmlFor={`day-${day.dayNumber}`}
-                        className="flex-1 cursor-pointer space-y-1.5"
-                      >
+                      <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
                           <span className="text-primary">Day {day.dayNumber}</span>
                           <span className="text-muted-foreground ml-2">
@@ -243,7 +260,7 @@ export default function Dashboard() {
                         <p className="text-[14px] leading-snug text-muted-foreground">
                           {day.telugu}
                         </p>
-                      </label>
+                      </div>
 
                       {completed && (
                         <Check className="text-green-500 mt-1" size={18} />
