@@ -28,10 +28,9 @@ export const useReadingProgress = () => {
       .eq("user_id", user.id);
 
     if (error) {
-      console.error(error);
       toast({
         title: "Error",
-        description: "Failed to load reading progress",
+        description: "Failed to load progress",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -61,18 +60,13 @@ export const useReadingProgress = () => {
     const { error } = await supabase
       .from("reading_progress")
       .upsert(
-        {
-          user_id: user.id,
-          day,
-          read_at: new Date().toISOString(),
-        },
+        { user_id: user.id, day },
         { onConflict: "user_id,day" }
       );
 
     inFlight.current.delete(day);
 
     if (error) {
-      console.error(error);
       setProgress(prev => {
         const copy = new Map(prev);
         copy.delete(day);
@@ -84,10 +78,7 @@ export const useReadingProgress = () => {
         description: error.message,
         variant: "destructive",
       });
-      return;
     }
-
-    fetchProgress();
   };
 
   /* ================= MARK INCOMPLETE ================= */
@@ -113,17 +104,13 @@ export const useReadingProgress = () => {
     inFlight.current.delete(day);
 
     if (error) {
-      console.error(error);
       setProgress(prev => new Map(prev).set(day, true));
       toast({
         title: "Failed to undo",
         description: error.message,
         variant: "destructive",
       });
-      return;
     }
-
-    fetchProgress();
   };
 
   /* ================= STATS ================= */
@@ -131,19 +118,17 @@ export const useReadingProgress = () => {
   const completedCount = progress.size;
   const progressPercentage = (completedCount / 365) * 100;
 
-  /**
-   * 🔒 FINAL MISSED LOGIC (SEQUENTIAL ONLY)
-   * Missed = unchecked days BEFORE first completed day
-   */
+  /* 🔒 FINAL, CORRECT MISSED LOGIC */
   const missedDays = (() => {
-    const completedDays = Array.from(progress.keys()).sort((a, b) => a - b);
+    const today = new Date();
+    const start = new Date(today.getFullYear(), 0, 1);
+    const todayDayNumber =
+      Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 
-    if (completedDays.length === 0) return [];
-
-    const firstCompletedDay = completedDays[0];
     const missed: number[] = [];
 
-    for (let d = 1; d < firstCompletedDay; d++) {
+    // Missed = unchecked days from Day 1 → Yesterday
+    for (let d = 1; d < todayDayNumber; d++) {
       if (!progress.has(d)) missed.push(d);
     }
 
