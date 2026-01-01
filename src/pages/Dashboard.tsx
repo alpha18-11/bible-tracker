@@ -6,6 +6,7 @@ import { readingPlan, getCurrentDayNumber } from "@/data/readingPlan";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
 import {
@@ -36,7 +37,6 @@ export default function Dashboard() {
 
   const currentDayNumber = getCurrentDayNumber();
   const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
-
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
   const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
@@ -45,15 +45,19 @@ export default function Dashboard() {
     "July","August","September","October","November","December",
   ];
 
-  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const monthAbbrev = [
+    "Jan","Feb","Mar","Apr","May","Jun",
+    "Jul","Aug","Sep","Oct","Nov","Dec"
+  ];
 
   const monthPlan = readingPlan.filter(d => {
     const m = d.date.split("-")[1];
     return monthAbbrev.indexOf(m) === currentMonth;
   });
 
+  /* 🔒 CRITICAL FIX: missed must come from FULL PLAN */
   const filteredPlan = showOnlyMissed
-    ? monthPlan.filter(d => missedDays.includes(d.dayNumber))
+    ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
 
   /* ================= PENDING ================= */
@@ -107,7 +111,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED ===== */}
+        {/* ===== PROGRESS + MISSED (RESTORED) ===== */}
         <div className="flex items-center gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
@@ -126,19 +130,11 @@ export default function Dashboard() {
             </p>
           </Card>
 
+          {/* 🔒 Missed is NOT month-dependent */}
           {missedDays.length > 0 && (
             <Card
               className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
-              onClick={() => {
-                setShowOnlyMissed(true);
-                const first = missedDays[0];
-                setTimeout(() => {
-                  missedRefMap.current[first]?.scrollIntoView({
-                    behavior: "smooth",
-                    block: "center",
-                  });
-                }, 120);
-              }}
+              onClick={() => setShowOnlyMissed(true)}
             >
               <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
                 <AlertCircle size={16} /> Missed
@@ -164,7 +160,7 @@ export default function Dashboard() {
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {months[currentMonth]} {showOnlyMissed && "• Missed"}
+            {showOnlyMissed ? "Missed Readings" : months[currentMonth]}
           </h2>
 
           <Button
@@ -184,7 +180,7 @@ export default function Dashboard() {
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
             <p className="text-xs text-muted-foreground">
-              Tick checkbox to mark complete / undo
+              Click checkbox to mark complete / undo
             </p>
           </CardHeader>
 
@@ -203,7 +199,7 @@ export default function Dashboard() {
                           missedRefMap.current[day.dayNumber] = el;
                         }
                       }}
-                      className={`flex gap-3 p-3 rounded-lg border relative pointer-events-none
+                      className={`flex gap-3 p-3 rounded-lg border
                         ${completed
                           ? "bg-green-900/20 border-green-700/30"
                           : past
@@ -211,22 +207,20 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ CLICKABLE CHECKBOX (FIXED) */}
-                      <input
-                        type="checkbox"
+                      {/* ✅ FINAL FIXED CHECKBOX */}
+                      <Checkbox
                         checked={completed}
                         disabled={isLoading}
-                        onChange={(e) => {
-                          e.stopPropagation();
+                        onCheckedChange={(checked) => {
                           if (isLoading) return;
-                          e.target.checked
+                          checked
                             ? markComplete(day.dayNumber)
                             : markIncomplete(day.dayNumber);
                         }}
-                        className="pointer-events-auto mt-1 h-5 w-5 cursor-pointer accent-primary"
+                        className="mt-1 cursor-pointer"
                       />
 
-                      <div className="flex-1 space-y-1.5 pointer-events-none">
+                      <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
                           <span className="text-primary">Day {day.dayNumber}</span>
                           <span className="text-muted-foreground ml-2">
