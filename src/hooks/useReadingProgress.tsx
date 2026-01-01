@@ -1,21 +1,20 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
+import { readingPlan } from "@/data/readingPlan";
 import { toast } from "@/hooks/use-toast";
 
 export const useReadingProgress = () => {
-  const { user } = useAuth(); // 🔥 REMOVED isApproved dependency
+  const { user, isApproved } = useAuth();
 
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
-
-  // prevents double-click race conditions
   const inFlight = useRef<Set<number>>(new Set());
 
   /* ================= FETCH ================= */
 
   const fetchProgress = useCallback(async () => {
-    if (!user) {
+    if (!user || !isApproved) {
       setProgress(new Map());
       setIsLoading(false);
       return;
@@ -29,10 +28,8 @@ export const useReadingProgress = () => {
       .eq("user_id", user.id);
 
     if (error) {
-      console.error(error);
       toast({
-        title: "Error",
-        description: "Failed to load reading progress",
+        title: "Error loading progress",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -43,7 +40,7 @@ export const useReadingProgress = () => {
     data?.forEach(row => map.set(row.day, true));
     setProgress(map);
     setIsLoading(false);
-  }, [user]);
+  }, [user, isApproved]);
 
   useEffect(() => {
     fetchProgress();
@@ -52,32 +49,24 @@ export const useReadingProgress = () => {
   /* ================= MARK COMPLETE ================= */
 
   const markComplete = async (day: number) => {
-    if (!user) return;
+    if (!user || !isApproved) return;
     if (progress.has(day)) return;
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
 
-    // optimistic UI
     setProgress(prev => new Map(prev).set(day, true));
 
     const { error } = await supabase
       .from("reading_progress")
       .upsert(
-        {
-          user_id: user.id,
-          day,
-          read_at: new Date().toISOString(),
-        },
+        { user_id: user.id, day },
         { onConflict: "user_id,day" }
       );
 
     inFlight.current.delete(day);
 
     if (error) {
-      console.error("Upsert failed:", error);
-
-      // rollback
       setProgress(prev => {
         const copy = new Map(prev);
         copy.delete(day);
@@ -92,19 +81,18 @@ export const useReadingProgress = () => {
       return;
     }
 
-    fetchProgress(); // final sync
+    fetchProgress();
   };
 
   /* ================= MARK INCOMPLETE ================= */
 
   const markIncomplete = async (day: number) => {
-    if (!user) return;
+    if (!user || !isApproved) return;
     if (!progress.has(day)) return;
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
 
-    // optimistic UI
     setProgress(prev => {
       const copy = new Map(prev);
       copy.delete(day);
@@ -120,14 +108,9 @@ export const useReadingProgress = () => {
     inFlight.current.delete(day);
 
     if (error) {
-      console.error("Delete failed:", error);
-
-      // rollback
       setProgress(prev => new Map(prev).set(day, true));
-
       toast({
         title: "Failed to undo",
-        description: error.message,
         variant: "destructive",
       });
       return;
@@ -141,17 +124,17 @@ export const useReadingProgress = () => {
   const completedCount = progress.size;
   const progressPercentage = (completedCount / 365) * 100;
 
+  /* 🔥 FINAL MISSED LOGIC (SEQUENCE-BASED) */
   const missedDays = (() => {
-    const today = new Date();
-    const start = new Date(today.getFullYear(), 0, 1);
-    const dayOfYear =
-      Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
+    if (progress.size === 0) return [];
 
-    const missed: number[] = [];
-    for (let d = 1; d < dayOfYear; d++) {
-      if (!progress.has(d)) missed.push(d);
-    }
-    return missed;
+    const maxCompletedDay = Math.max(...Array.from(progress.keys()));
+
+    return readingPlan
+      .filter(
+        d => d.dayNumber < maxCompletedDay && !progress.has(d.dayNumber)
+      )
+      .map(d => d.dayNumber);
   })();
 
   return {

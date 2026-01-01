@@ -1,8 +1,8 @@
-import React, { useState, useRef } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useReadingProgress } from "@/hooks/useReadingProgress";
-import { readingPlan, getCurrentDayNumber } from "@/data/readingPlan";
+import { readingPlan } from "@/data/readingPlan";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,7 +13,7 @@ import {
   LogOut,
   Shield,
   Check,
-  Clock,
+  AlertCircle,
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
@@ -22,7 +22,7 @@ import bethesdaLogo from "@/assets/bethesda-logo.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { profile, isAdmin, isPending, signOut } = useAuth();
+  const { profile, isAdmin, signOut } = useAuth();
 
   const {
     progress,
@@ -34,50 +34,24 @@ export default function Dashboard() {
     isLoading,
   } = useReadingProgress();
 
-  const currentDayNumber = getCurrentDayNumber();
-  const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
-
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
-  const [showOnlyMissed, setShowOnlyMissed] = useState(false);
+  const [catchUpMode, setCatchUpMode] = useState(false);
 
   const months = [
     "January","February","March","April","May","June",
     "July","August","September","October","November","December",
   ];
 
-  const monthAbbrev = [
-    "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec",
-  ];
+  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
   const monthPlan = readingPlan.filter(d => {
     const m = d.date.split("-")[1];
     return monthAbbrev.indexOf(m) === currentMonth;
   });
 
-  /* 🔒 CRITICAL: missed must be filtered from FULL plan */
-  const filteredPlan = showOnlyMissed
+  const visiblePlan = catchUpMode
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
-
-  /* ================= PENDING ================= */
-
-  if (isPending) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Card className="max-w-md w-full p-6 text-center">
-          <Clock className="mx-auto mb-4 text-yellow-500" size={40} />
-          <h2 className="text-xl font-semibold">Awaiting Approval</h2>
-          <p className="text-muted-foreground mt-2">
-            Hi {profile?.full_name}, your account is pending admin approval.
-          </p>
-          <Button className="mt-4 w-full" onClick={signOut}>
-            <LogOut className="mr-2" size={16} /> Sign Out
-          </Button>
-        </Card>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -111,51 +85,43 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED ===== */}
-        <div className="flex gap-3 mb-4">
-          {/* PROGRESS */}
+        {/* PROGRESS + MISSED */}
+        <div className="flex gap-4 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
             </p>
-
-            <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
+            <div className="h-2 bg-secondary rounded-full mt-2">
               <div
-                className="h-full bg-primary transition-all"
+                className="h-full bg-primary"
                 style={{ width: `${progressPercentage}%` }}
               />
             </div>
-
             <p className="text-xs text-right mt-1">
               {progressPercentage.toFixed(1)}%
             </p>
           </Card>
 
-          {/* MISSED */}
           <Card
-            className={`w-[140px] p-4 cursor-pointer transition
-              ${showOnlyMissed
-                ? "border-yellow-500 bg-yellow-500/10"
-                : "border-border hover:bg-secondary/40"}
-            `}
-            onClick={() => setShowOnlyMissed(prev => !prev)}
+            className="w-[140px] p-4 cursor-pointer border-yellow-500/40 hover:bg-yellow-500/10"
+            onClick={() => setCatchUpMode(true)}
           >
-            <div className="text-yellow-500 text-sm font-medium text-center">
-              Missed
+            <div className="flex items-center gap-2 text-yellow-500 font-semibold">
+              <AlertCircle size={18} /> Missed
             </div>
-            <p className="text-2xl font-semibold text-center mt-2">
+            <p className="text-2xl text-center mt-2">
               {missedDays.length}
             </p>
           </Card>
         </div>
 
-        {/* ===== MONTH NAV ===== */}
+        {/* MONTH / MODE NAV */}
         <div className="flex justify-between items-center mb-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setCatchUpMode(false);
               setCurrentMonth(m => (m === 0 ? 11 : m - 1));
             }}
           >
@@ -163,14 +129,14 @@ export default function Dashboard() {
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {showOnlyMissed ? "Missed Readings" : months[currentMonth]}
+            {catchUpMode ? "Catch-Up Mode" : months[currentMonth]}
           </h2>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setCatchUpMode(false);
               setCurrentMonth(m => (m === 11 ? 0 : m + 1));
             }}
           >
@@ -178,7 +144,7 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* ===== DAILY PLAN ===== */}
+        {/* DAILY PLAN */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
@@ -190,27 +156,18 @@ export default function Dashboard() {
           <CardContent>
             <ScrollArea className="h-[75vh] pr-3">
               <div className="space-y-2">
-                {filteredPlan.map(day => {
+                {visiblePlan.map(day => {
                   const completed = progress.has(day.dayNumber);
-                  const past = day.dayNumber < currentDayNumber;
 
                   return (
                     <div
                       key={day.dayNumber}
-                      ref={el => {
-                        if (!completed && past) {
-                          missedRefMap.current[day.dayNumber] = el;
-                        }
-                      }}
                       className={`flex gap-3 p-3 rounded-lg border
                         ${completed
                           ? "bg-green-900/20 border-green-700/30"
-                          : past
-                          ? "bg-secondary/40 border-border/40"
-                          : "bg-secondary/60 border-border/60"}
+                          : "bg-secondary/50"}
                       `}
                     >
-                      {/* ✅ SAFE RADIX CHECKBOX */}
                       <Checkbox
                         checked={completed}
                         disabled={isLoading}
@@ -220,29 +177,18 @@ export default function Dashboard() {
                             ? markComplete(day.dayNumber)
                             : markIncomplete(day.dayNumber);
                         }}
-                        className="mt-1 cursor-pointer"
+                        className="mt-1"
                       />
 
-                      <div className="flex-1 space-y-1.5">
-                        <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
-                          <span className="text-primary">Day {day.dayNumber}</span>
-                          <span className="text-muted-foreground ml-2">
-                            ({day.date})
-                          </span>
+                      <div className="flex-1">
+                        <div className={`font-semibold ${completed && "line-through text-muted-foreground"}`}>
+                          Day {day.dayNumber} ({day.date})
                         </div>
-
-                        <p className="text-[15px] leading-snug font-medium">
-                          {day.english}
-                        </p>
-
-                        <p className="text-[14px] leading-snug text-muted-foreground">
-                          {day.telugu}
-                        </p>
+                        <p>{day.english}</p>
+                        <p className="text-muted-foreground">{day.telugu}</p>
                       </div>
 
-                      {completed && (
-                        <Check className="text-green-500 mt-1" size={18} />
-                      )}
+                      {completed && <Check className="text-green-500 mt-1" />}
                     </div>
                   );
                 })}
