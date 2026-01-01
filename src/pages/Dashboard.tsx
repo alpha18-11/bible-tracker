@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { useReadingProgress } from "@/hooks/useReadingProgress";
-import { readingPlan, getCurrentDayNumber } from "@/data/readingPlan";
+import { readingPlan } from "@/data/readingPlan";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,7 +22,7 @@ import bethesdaLogo from "@/assets/bethesda-logo.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { profile, isAdmin, isPending, signOut } = useAuth();
+  const { profile, isAdmin, signOut } = useAuth();
 
   const {
     progress,
@@ -34,8 +34,7 @@ export default function Dashboard() {
     isLoading,
   } = useReadingProgress();
 
-  const currentDayNumber = getCurrentDayNumber();
-  const [showOnlyMissed, setShowOnlyMissed] = useState(false);
+  const [showMissedOnly, setShowMissedOnly] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
 
   const months = [
@@ -45,15 +44,14 @@ export default function Dashboard() {
 
   const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const monthPlan = readingPlan.filter(d =>
-    monthAbbrev.indexOf(d.date.split("-")[1]) === currentMonth
-  );
+  const monthPlan = readingPlan.filter(d => {
+    const m = d.date.split("-")[1];
+    return monthAbbrev.indexOf(m) === currentMonth;
+  });
 
-  const displayPlan = showOnlyMissed
+  const filteredPlan = showMissedOnly
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
-
-  if (isPending) return null;
 
   return (
     <div className="min-h-screen gradient-bg">
@@ -87,8 +85,8 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* PROGRESS + MISSED */}
-        <div className="flex gap-4 mb-5">
+        {/* ===== PROGRESS + MISSED ===== */}
+        <div className="flex gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
               {completedCount} of 365 days completed
@@ -105,27 +103,27 @@ export default function Dashboard() {
           </Card>
 
           <Card
-            className={`w-36 p-4 cursor-pointer border-yellow-500/40 ${
-              missedDays.length ? "hover:bg-yellow-500/10" : ""
+            className={`px-4 py-3 cursor-pointer border-yellow-500/40 ${
+              missedDays.length > 0 ? "hover:bg-yellow-500/10" : "opacity-50"
             }`}
-            onClick={() => missedDays.length && setShowOnlyMissed(true)}
+            onClick={() => missedDays.length && setShowMissedOnly(true)}
           >
-            <div className="flex items-center gap-2 text-yellow-500 font-medium">
+            <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
               <AlertCircle size={16} /> Missed
             </div>
-            <p className="text-2xl text-center mt-2">
+            <p className="text-2xl font-semibold text-center mt-1">
               {missedDays.length}
             </p>
           </Card>
         </div>
 
-        {/* MONTH NAV */}
+        {/* ===== MONTH NAV ===== */}
         <div className="flex justify-between items-center mb-3">
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setShowMissedOnly(false);
               setCurrentMonth(m => (m === 0 ? 11 : m - 1));
             }}
           >
@@ -133,14 +131,14 @@ export default function Dashboard() {
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {showOnlyMissed ? "Missed Readings" : months[currentMonth]}
+            {showMissedOnly ? "Missed Readings" : months[currentMonth]}
           </h2>
 
           <Button
             variant="ghost"
             size="sm"
             onClick={() => {
-              setShowOnlyMissed(false);
+              setShowMissedOnly(false);
               setCurrentMonth(m => (m === 11 ? 0 : m + 1));
             }}
           >
@@ -148,7 +146,7 @@ export default function Dashboard() {
           </Button>
         </div>
 
-        {/* DAILY PLAN */}
+        {/* ===== DAILY PLAN ===== */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
@@ -160,20 +158,17 @@ export default function Dashboard() {
           <CardContent>
             <ScrollArea className="h-[75vh] pr-3">
               <div className="space-y-2">
-                {displayPlan.map(day => {
+                {filteredPlan.map(day => {
                   const completed = progress.has(day.dayNumber);
-                  const past = day.dayNumber < currentDayNumber;
 
                   return (
                     <div
                       key={day.dayNumber}
-                      className={`flex gap-3 p-3 rounded-lg border
-                        ${completed
+                      className={`flex gap-3 p-3 rounded-lg border ${
+                        completed
                           ? "bg-green-900/20 border-green-700/30"
-                          : past
-                          ? "bg-secondary/40 border-border/40"
-                          : "bg-secondary/60 border-border/60"}
-                      `}
+                          : "bg-secondary/60 border-border/60"
+                      }`}
                     >
                       <Checkbox
                         checked={completed}
@@ -183,17 +178,21 @@ export default function Dashboard() {
                             ? markComplete(day.dayNumber)
                             : markIncomplete(day.dayNumber)
                         }
+                        className="mt-1"
                       />
 
-                      <div className="flex-1">
+                      <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
-                          Day {day.dayNumber} ({day.date})
+                          <span className="text-primary">Day {day.dayNumber}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({day.date})
+                          </span>
                         </div>
-                        <p className="font-medium">{day.english}</p>
-                        <p className="text-sm text-muted-foreground">{day.telugu}</p>
+                        <p className="text-[15px] font-medium">{day.english}</p>
+                        <p className="text-[14px] text-muted-foreground">{day.telugu}</p>
                       </div>
 
-                      {completed && <Check className="text-green-500" size={18} />}
+                      {completed && <Check className="text-green-500 mt-1" size={18} />}
                     </div>
                   );
                 })}
