@@ -8,12 +8,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { AlertCircle, ChevronLeft, ChevronRight, Check } from "lucide-react";
+
+import {
+  LogOut,
+  Shield,
+  Check,
+  Clock,
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+
 import bethesdaLogo from "@/assets/bethesda-logo.png";
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { profile, isAdmin, signOut } = useAuth();
+  const { profile, isAdmin, isPending, signOut } = useAuth();
+
   const {
     progress,
     markComplete,
@@ -24,129 +35,219 @@ export default function Dashboard() {
     isLoading,
   } = useReadingProgress();
 
-  const refs = useRef<Record<number, HTMLDivElement | null>>({});
-  const [month, setMonth] = useState(new Date().getMonth());
-  const [showMissed, setShowMissed] = useState(false);
+  const currentDayNumber = getCurrentDayNumber();
+  const missedRefMap = useRef<Record<number, HTMLDivElement | null>>({});
+  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth());
+  const [showOnlyMissed, setShowOnlyMissed] = useState(false);
 
   const months = [
     "January","February","March","April","May","June",
-    "July","August","September","October","November","December"
+    "July","August","September","October","November","December",
   ];
-  const abbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const planByMonth = readingPlan.filter(
-    (d) => abbrev.indexOf(d.date.split("-")[1]) === month
-  );
+  const monthAbbrev = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 
-  const missedByMonth = readingPlan.filter((d) =>
-    missedDays.includes(d.dayNumber)
-  );
+  const monthPlan = readingPlan.filter(d => {
+    const m = d.date.split("-")[1];
+    return monthAbbrev.indexOf(m) === currentMonth;
+  });
+
+  const filteredPlan = showOnlyMissed
+    ? monthPlan.filter(d => missedDays.includes(d.dayNumber))
+    : monthPlan;
+
+  /* ================= PENDING ================= */
+
+  if (isPending) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Card className="max-w-md w-full p-6 text-center">
+          <Clock className="mx-auto mb-4 text-yellow-500" size={40} />
+          <h2 className="text-xl font-semibold">Awaiting Approval</h2>
+          <p className="text-muted-foreground mt-2">
+            Hi {profile?.full_name}, your account is pending admin approval.
+          </p>
+          <Button className="mt-4 w-full" onClick={signOut}>
+            <LogOut className="mr-2" size={16} /> Sign Out
+          </Button>
+        </Card>
+      </div>
+    );
+  }
+
+  /* ================= UI ================= */
 
   return (
     <div className="min-h-screen gradient-bg">
       {/* HEADER */}
-      <header className="sticky top-0 bg-background/80 backdrop-blur border-b z-50">
+      <header className="sticky top-0 z-50 bg-background/80 backdrop-blur border-b">
         <div className="container mx-auto px-4 py-3 flex justify-between items-center">
-          <div className="flex gap-3 items-center">
+          <div className="flex items-center gap-3">
             <img src={bethesdaLogo} className="w-9 h-9" />
             <div>
-              <h1 className="font-medium">
-                Bethesda <span className="text-primary italic">Bible Tracker</span>
+              <h1 className="text-lg font-medium">
+                Bethesda <span className="italic text-primary">Bible Tracker</span>
               </h1>
-              <p className="text-xs text-muted-foreground">Welcome, {profile?.full_name}</p>
+              <p className="text-xs text-muted-foreground">
+                Welcome, {profile?.full_name}
+              </p>
             </div>
           </div>
+
           <div className="flex gap-2">
-            {isAdmin && <Button onClick={() => navigate("/admin")}>Admin</Button>}
-            <Button variant="ghost" onClick={signOut}>Logout</Button>
+            {isAdmin && (
+              <Button variant="outline" onClick={() => navigate("/admin")}>
+                <Shield size={16} className="mr-2" /> Admin
+              </Button>
+            )}
+            <Button variant="ghost" onClick={signOut}>
+              <LogOut size={18} />
+            </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-5">
-        {/* PROGRESS */}
-        <div className="flex gap-3 mb-4">
+
+        {/* ===== PROGRESS + MISSED ===== */}
+        <div className="flex items-center gap-3 mb-4">
           <Card className="flex-1 p-4">
-            <p className="text-sm">{completedCount} of 365 completed</p>
-            <div className="h-2 bg-secondary rounded mt-2 overflow-hidden">
-              <div className="h-full bg-primary" style={{ width: `${progressPercentage}%` }} />
+            <p className="text-sm text-muted-foreground">
+              {completedCount} of 365 days completed
+            </p>
+
+            <div className="h-2 bg-secondary rounded-full mt-2 overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all"
+                style={{ width: `${progressPercentage}%` }}
+              />
             </div>
-            <p className="text-xs text-right mt-1">{progressPercentage.toFixed(1)}%</p>
+
+            <p className="text-xs text-right mt-1">
+              {progressPercentage.toFixed(1)}%
+            </p>
           </Card>
 
-          <Card
-            className="cursor-pointer p-4 min-w-[140px] border-yellow-500"
-            onClick={() => setShowMissed(true)}
-          >
-            <div className="flex gap-2 items-center text-yellow-500">
-              <AlertCircle size={16} /> Missed
-            </div>
-            <p className="text-2xl text-center">{missedDays.length}</p>
-          </Card>
+          {missedDays.length > 0 && (
+            <Card
+              className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
+              onClick={() => {
+                setShowOnlyMissed(true);
+                const first = missedDays[0];
+                setTimeout(() => {
+                  missedRefMap.current[first]?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "center",
+                  });
+                }, 100);
+              }}
+            >
+              <div className="flex items-center gap-2 text-yellow-500 text-sm font-medium">
+                <AlertCircle size={16} /> Missed
+              </div>
+              <p className="text-xs text-muted-foreground mt-1 text-center">
+                {missedDays.length} day{missedDays.length > 1 && "s"}
+              </p>
+            </Card>
+          )}
         </div>
 
-        {/* MONTH / MODE HEADER */}
+        {/* ===== MONTH NAV ===== */}
         <div className="flex justify-between items-center mb-3">
           <Button
             variant="ghost"
+            size="sm"
             onClick={() => {
-              setShowMissed(false);
-              setMonth((m) => (m === 0 ? 11 : m - 1));
+              setShowOnlyMissed(false);
+              setCurrentMonth(m => (m === 0 ? 11 : m - 1));
             }}
           >
-            <ChevronLeft /> Prev
+            <ChevronLeft size={16} /> Prev
           </Button>
 
           <h2 className="text-lg font-semibold">
-            {showMissed ? "Missed Readings" : months[month]}
+            {months[currentMonth]} {showOnlyMissed && "• Missed"}
           </h2>
 
           <Button
             variant="ghost"
+            size="sm"
             onClick={() => {
-              setShowMissed(false);
-              setMonth((m) => (m === 11 ? 0 : m + 1));
+              setShowOnlyMissed(false);
+              setCurrentMonth(m => (m === 11 ? 0 : m + 1));
             }}
           >
-            Next <ChevronRight />
+            Next <ChevronRight size={16} />
           </Button>
         </div>
 
-        {/* CONTENT */}
+        {/* ===== DAILY PLAN ===== */}
         <Card>
           <CardHeader>
             <CardTitle>Daily Reading Plan</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Tap checkbox to mark complete / undo
+            </p>
           </CardHeader>
 
           <CardContent>
-            <ScrollArea className="h-[70vh] pr-3">
-              {(showMissed ? missedByMonth : planByMonth).map((day) => {
-                const completed = progress.has(day.dayNumber);
-                return (
-                  <div
-                    key={day.dayNumber}
-                    ref={(el) => (refs.current[day.dayNumber] = el)}
-                    className={`flex gap-3 p-3 mb-2 rounded border cursor-pointer ${
-                      completed ? "bg-green-900/20" : "bg-secondary/40"
-                    }`}
-                    onClick={() =>
-                      completed
-                        ? markIncomplete(day.dayNumber)
-                        : markComplete(day.dayNumber)
-                    }
-                  >
-                    <Checkbox checked={completed} />
-                    <div className="flex-1">
-                      <p className="font-semibold">
-                        Day {day.dayNumber} ({day.date})
-                      </p>
-                      <p>{day.english}</p>
-                      <p className="text-sm text-muted-foreground">{day.telugu}</p>
+            <ScrollArea className="h-[75vh] pr-3">
+              <div className="space-y-2">
+                {filteredPlan.map(day => {
+                  const completed = progress.has(day.dayNumber);
+                  const past = day.dayNumber < currentDayNumber;
+
+                  return (
+                    <div
+                      key={day.dayNumber}
+                      ref={el => {
+                        if (!completed && past) {
+                          missedRefMap.current[day.dayNumber] = el;
+                        }
+                      }}
+                      className={`flex gap-3 p-3 rounded-lg border transition
+                        ${completed
+                          ? "bg-green-900/20 border-green-700/30"
+                          : past
+                          ? "bg-secondary/40 border-border/40"
+                          : "bg-secondary/60 border-border/60"}
+                      `}
+                    >
+                      {/* ✅ CLICKABLE CHECKBOX */}
+                      <Checkbox
+                        checked={completed}
+                        onCheckedChange={(checked) => {
+                          if (checked) {
+                            markComplete(day.dayNumber);
+                          } else {
+                            markIncomplete(day.dayNumber);
+                          }
+                        }}
+                        className="mt-1 cursor-pointer"
+                      />
+
+                      <div className="flex-1 space-y-1.5">
+                        <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
+                          <span className="text-primary">Day {day.dayNumber}</span>
+                          <span className="text-muted-foreground ml-2">
+                            ({day.date})
+                          </span>
+                        </div>
+
+                        <p className="text-[15px] leading-snug font-medium">
+                          {day.english}
+                        </p>
+
+                        <p className="text-[14px] leading-snug text-muted-foreground">
+                          {day.telugu}
+                        </p>
+                      </div>
+
+                      {completed && <Check className="text-green-500 mt-1" size={18} />}
                     </div>
-                    {completed && <Check className="text-green-500" />}
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </ScrollArea>
           </CardContent>
         </Card>
