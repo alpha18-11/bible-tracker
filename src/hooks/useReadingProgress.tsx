@@ -4,22 +4,24 @@ import { useAuth } from "./useAuth";
 import { toast } from "@/hooks/use-toast";
 
 export const useReadingProgress = () => {
-  const { user, isApproved } = useAuth();
+  const { user } = useAuth(); // 🔥 REMOVED isApproved dependency
 
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
-  const [isLoading, setIsLoading] = useState(true); // ONLY initial load
+  const [isLoading, setIsLoading] = useState(true);
+
+  // prevents double-click race conditions
   const inFlight = useRef<Set<number>>(new Set());
 
   /* ================= FETCH ================= */
 
-  const fetchProgress = useCallback(async (initial = false) => {
-    if (!user || !isApproved) {
+  const fetchProgress = useCallback(async () => {
+    if (!user) {
       setProgress(new Map());
       setIsLoading(false);
       return;
     }
 
-    if (initial) setIsLoading(true);
+    setIsLoading(true);
 
     const { data, error } = await supabase
       .from("reading_progress")
@@ -40,34 +42,42 @@ export const useReadingProgress = () => {
     const map = new Map<number, boolean>();
     data?.forEach(row => map.set(row.day, true));
     setProgress(map);
-
     setIsLoading(false);
-  }, [user, isApproved]);
+  }, [user]);
 
   useEffect(() => {
-    fetchProgress(true); // initial load only
+    fetchProgress();
   }, [fetchProgress]);
 
   /* ================= MARK COMPLETE ================= */
 
   const markComplete = async (day: number) => {
-    if (!user || !isApproved) return;
+    if (!user) return;
     if (progress.has(day)) return;
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
+
+    // optimistic UI
     setProgress(prev => new Map(prev).set(day, true));
 
     const { error } = await supabase
       .from("reading_progress")
       .upsert(
-        { user_id: user.id, day },
+        {
+          user_id: user.id,
+          day,
+          read_at: new Date().toISOString(),
+        },
         { onConflict: "user_id,day" }
       );
 
     inFlight.current.delete(day);
 
     if (error) {
+      console.error("Upsert failed:", error);
+
+      // rollback
       setProgress(prev => {
         const copy = new Map(prev);
         copy.delete(day);
@@ -82,17 +92,19 @@ export const useReadingProgress = () => {
       return;
     }
 
-    fetchProgress(); // background sync, DOES NOT disable UI
+    fetchProgress(); // final sync
   };
 
   /* ================= MARK INCOMPLETE ================= */
 
   const markIncomplete = async (day: number) => {
-    if (!user || !isApproved) return;
+    if (!user) return;
     if (!progress.has(day)) return;
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
+
+    // optimistic UI
     setProgress(prev => {
       const copy = new Map(prev);
       copy.delete(day);
@@ -108,7 +120,11 @@ export const useReadingProgress = () => {
     inFlight.current.delete(day);
 
     if (error) {
+      console.error("Delete failed:", error);
+
+      // rollback
       setProgress(prev => new Map(prev).set(day, true));
+
       toast({
         title: "Failed to undo",
         description: error.message,
@@ -140,11 +156,12 @@ export const useReadingProgress = () => {
 
   return {
     progress,
-    isLoading, // ONLY blocks UI during first load
+    isLoading,
     markComplete,
     markIncomplete,
     completedCount,
     progressPercentage,
     missedDays,
+    refreshProgress: fetchProgress,
   };
 };
