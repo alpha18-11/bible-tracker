@@ -47,7 +47,7 @@ export default function Dashboard() {
 
   const monthAbbrev = [
     "Jan","Feb","Mar","Apr","May","Jun",
-    "Jul","Aug","Sep","Oct","Nov","Dec"
+    "Jul","Aug","Sep","Oct","Nov","Dec",
   ];
 
   const monthPlan = readingPlan.filter(d => {
@@ -55,7 +55,7 @@ export default function Dashboard() {
     return monthAbbrev.indexOf(m) === currentMonth;
   });
 
-  /* 🔒 CRITICAL FIX: missed must come from FULL PLAN */
+  // ✅ Missed must always come from FULL reading plan
   const filteredPlan = showOnlyMissed
     ? readingPlan.filter(d => missedDays.includes(d.dayNumber))
     : monthPlan;
@@ -111,7 +111,7 @@ export default function Dashboard() {
 
       <main className="container mx-auto px-4 py-5">
 
-        {/* ===== PROGRESS + MISSED (RESTORED) ===== */}
+        {/* ===== PROGRESS + MISSED ===== */}
         <div className="flex items-center gap-3 mb-4">
           <Card className="flex-1 p-4">
             <p className="text-sm text-muted-foreground">
@@ -130,7 +130,6 @@ export default function Dashboard() {
             </p>
           </Card>
 
-          {/* 🔒 Missed is NOT month-dependent */}
           {missedDays.length > 0 && (
             <Card
               className="cursor-pointer px-4 py-3 border-yellow-500/40 hover:bg-yellow-500/10"
@@ -207,17 +206,20 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ FINAL FIXED CHECKBOX */}
+                      {/* ✅ FINAL, CORRECT RADIX HANDLER */}
                       <Checkbox
                         checked={completed}
                         disabled={isLoading}
                         onCheckedChange={(checked) => {
                           if (isLoading) return;
-                          checked
-                            ? markComplete(day.dayNumber)
-                            : markIncomplete(day.dayNumber);
+
+                          if (checked === true) {
+                            markComplete(day.dayNumber);
+                          } else {
+                            markIncomplete(day.dayNumber);
+                          }
                         }}
-                        className="mt-1 cursor-pointer"
+                        className="mt-1"
                       />
 
                       <div className="flex-1 space-y-1.5">
