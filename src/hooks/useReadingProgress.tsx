@@ -1,14 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
-import { readingPlan } from "@/data/readingPlan";
 import { toast } from "@/hooks/use-toast";
+import { readingPlan } from "@/data/readingPlan";
 
 export const useReadingProgress = () => {
   const { user, isApproved } = useAuth();
 
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
+
+  // Prevent race conditions
   const inFlight = useRef<Set<number>>(new Set());
 
   /* ================= FETCH ================= */
@@ -28,8 +30,10 @@ export const useReadingProgress = () => {
       .eq("user_id", user.id);
 
     if (error) {
+      console.error(error);
       toast({
-        title: "Error loading progress",
+        title: "Error",
+        description: "Failed to load reading progress",
         variant: "destructive",
       });
       setIsLoading(false);
@@ -54,15 +58,15 @@ export const useReadingProgress = () => {
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
-
     setProgress(prev => new Map(prev).set(day, true));
 
     const { error } = await supabase
       .from("reading_progress")
-      .upsert(
-        { user_id: user.id, day },
-        { onConflict: "user_id,day" }
-      );
+      .insert({
+        user_id: user.id,
+        day,
+        read_at: new Date().toISOString(),
+      });
 
     inFlight.current.delete(day);
 
@@ -92,7 +96,6 @@ export const useReadingProgress = () => {
     if (inFlight.current.has(day)) return;
 
     inFlight.current.add(day);
-
     setProgress(prev => {
       const copy = new Map(prev);
       copy.delete(day);
@@ -111,6 +114,7 @@ export const useReadingProgress = () => {
       setProgress(prev => new Map(prev).set(day, true));
       toast({
         title: "Failed to undo",
+        description: error.message,
         variant: "destructive",
       });
       return;
@@ -119,23 +123,26 @@ export const useReadingProgress = () => {
     fetchProgress();
   };
 
-  /* ================= STATS ================= */
+  /* ================= CORRECT MISSED LOGIC ================= */
 
-  const completedCount = progress.size;
-  const progressPercentage = (completedCount / 365) * 100;
-
-  /* 🔥 FINAL MISSED LOGIC (SEQUENCE-BASED) */
   const missedDays = (() => {
     if (progress.size === 0) return [];
 
-    const maxCompletedDay = Math.max(...Array.from(progress.keys()));
+    const completed = Array.from(progress.keys()).sort((a, b) => a - b);
+    const lastCompleted = completed[completed.length - 1];
 
-    return readingPlan
-      .filter(
-        d => d.dayNumber < maxCompletedDay && !progress.has(d.dayNumber)
-      )
-      .map(d => d.dayNumber);
+    const missed: number[] = [];
+    for (let day = 1; day < lastCompleted; day++) {
+      if (!progress.has(day)) missed.push(day);
+    }
+
+    return missed;
   })();
+
+  /* ================= STATS ================= */
+
+  const completedCount = progress.size;
+  const progressPercentage = (completedCount / readingPlan.length) * 100;
 
   return {
     progress,
