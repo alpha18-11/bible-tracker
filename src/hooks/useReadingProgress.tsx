@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "./useAuth";
 import { toast } from "@/hooks/use-toast";
-import { readingPlan } from "@/data/readingPlan";
 
 export const useReadingProgress = () => {
   const { user, isApproved } = useAuth();
@@ -10,7 +9,6 @@ export const useReadingProgress = () => {
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Prevent race conditions
   const inFlight = useRef<Set<number>>(new Set());
 
   /* ================= FETCH ================= */
@@ -62,15 +60,19 @@ export const useReadingProgress = () => {
 
     const { error } = await supabase
       .from("reading_progress")
-      .insert({
-        user_id: user.id,
-        day,
-        read_at: new Date().toISOString(),
-      });
+      .upsert(
+        {
+          user_id: user.id,
+          day,
+          read_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,day" }
+      );
 
     inFlight.current.delete(day);
 
     if (error) {
+      console.error(error);
       setProgress(prev => {
         const copy = new Map(prev);
         copy.delete(day);
@@ -111,6 +113,7 @@ export const useReadingProgress = () => {
     inFlight.current.delete(day);
 
     if (error) {
+      console.error(error);
       setProgress(prev => new Map(prev).set(day, true));
       toast({
         title: "Failed to undo",
@@ -123,26 +126,29 @@ export const useReadingProgress = () => {
     fetchProgress();
   };
 
-  /* ================= CORRECT MISSED LOGIC ================= */
+  /* ================= STATS ================= */
 
+  const completedCount = progress.size;
+  const progressPercentage = (completedCount / 365) * 100;
+
+  /**
+   * 🔒 FINAL MISSED LOGIC (SEQUENTIAL ONLY)
+   * Missed = unchecked days BEFORE first completed day
+   */
   const missedDays = (() => {
-    if (progress.size === 0) return [];
+    const completedDays = Array.from(progress.keys()).sort((a, b) => a - b);
 
-    const completed = Array.from(progress.keys()).sort((a, b) => a - b);
-    const lastCompleted = completed[completed.length - 1];
+    if (completedDays.length === 0) return [];
 
+    const firstCompletedDay = completedDays[0];
     const missed: number[] = [];
-    for (let day = 1; day < lastCompleted; day++) {
-      if (!progress.has(day)) missed.push(day);
+
+    for (let d = 1; d < firstCompletedDay; d++) {
+      if (!progress.has(d)) missed.push(d);
     }
 
     return missed;
   })();
-
-  /* ================= STATS ================= */
-
-  const completedCount = progress.size;
-  const progressPercentage = (completedCount / readingPlan.length) * 100;
 
   return {
     progress,
