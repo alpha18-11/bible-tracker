@@ -6,11 +6,10 @@ import { toast } from "@/hooks/use-toast";
 export const useReadingProgress = () => {
   const { user, isApproved } = useAuth();
 
-  // Map<dayNumber, completed>
   const [progress, setProgress] = useState<Map<number, boolean>>(new Map());
   const [isLoading, setIsLoading] = useState(true);
 
-  /* ================= FETCH PROGRESS ================= */
+  /* ================= FETCH ================= */
 
   const fetchProgress = useCallback(async () => {
     if (!user || !isApproved) {
@@ -28,16 +27,14 @@ export const useReadingProgress = () => {
       if (error) throw error;
 
       const map = new Map<number, boolean>();
-      data?.forEach(row => {
-        map.set(row.day, true);
-      });
+      data?.forEach(row => map.set(row.day, true));
 
       setProgress(map);
     } catch (err) {
-      console.error("Fetch progress error:", err);
+      console.error(err);
       toast({
         title: "Error",
-        description: "Failed to load reading progress",
+        description: "Failed to load progress",
         variant: "destructive",
       });
     } finally {
@@ -53,26 +50,23 @@ export const useReadingProgress = () => {
 
   const markComplete = async (day: number) => {
     if (!user || !isApproved) return;
-    if (progress.get(day)) return;
+    if (progress.has(day)) return;
 
-    // Optimistic UI
+    // optimistic UI
     setProgress(prev => new Map(prev).set(day, true));
 
     const { error } = await supabase
       .from("reading_progress")
-      .upsert(
-        {
-          user_id: user.id,
-          day,
-          read_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,day" }
-      );
+      .insert({
+        user_id: user.id,
+        day,
+        read_at: new Date().toISOString(),
+      });
 
     if (error) {
-      console.error("Insert error:", error);
+      console.error("Insert failed:", error);
 
-      // Rollback UI
+      // rollback
       setProgress(prev => {
         const copy = new Map(prev);
         copy.delete(day);
@@ -91,9 +85,8 @@ export const useReadingProgress = () => {
 
   const markIncomplete = async (day: number) => {
     if (!user || !isApproved) return;
-    if (!progress.get(day)) return;
+    if (!progress.has(day)) return;
 
-    // Optimistic UI
     setProgress(prev => {
       const copy = new Map(prev);
       copy.delete(day);
@@ -107,9 +100,7 @@ export const useReadingProgress = () => {
       .eq("day", day);
 
     if (error) {
-      console.error("Delete error:", error);
-
-      // Rollback UI
+      console.error(error);
       setProgress(prev => new Map(prev).set(day, true));
 
       toast({
@@ -127,13 +118,13 @@ export const useReadingProgress = () => {
 
   const getMissedDays = () => {
     const today = new Date();
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const start = new Date(today.getFullYear(), 0, 1);
     const dayOfYear =
-      Math.floor((today.getTime() - startOfYear.getTime()) / 86400000) + 1;
+      Math.floor((today.getTime() - start.getTime()) / 86400000) + 1;
 
     const missed: number[] = [];
     for (let d = 1; d < dayOfYear; d++) {
-      if (!progress.get(d)) missed.push(d);
+      if (!progress.has(d)) missed.push(d);
     }
     return missed;
   };
