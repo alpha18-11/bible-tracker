@@ -211,17 +211,19 @@ export default function Dashboard() {
                           : "bg-secondary/60 border-border/60"}
                       `}
                     >
-                      {/* ✅ FINAL FIXED CHECKBOX */}
-                      <Checkbox
-                        checked={completed}
-                        disabled={isLoading}
-                        onCheckedChange={(checked) => {
-                          if (isLoading) return;
-                          checked
-                            ? markComplete(day.dayNumber)
-                            : markIncomplete(day.dayNumber);
-                        }}
-                      />
+                      {/* ✅ FINAL FIX: POINTER EVENTS RESTORED */}
+                      <div className="pointer-events-auto z-20">
+                        <Checkbox
+                          checked={completed}
+                          disabled={isLoading}
+                          onCheckedChange={(checked) => {
+                            if (isLoading) return;
+                            checked
+                              ? markComplete(day.dayNumber)
+                              : markIncomplete(day.dayNumber);
+                          }}
+                        />
+                      </div>
 
                       <div className="flex-1 space-y-1.5">
                         <div className={`text-sm font-semibold ${completed && "line-through text-muted-foreground"}`}>
