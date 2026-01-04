@@ -8,15 +8,14 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ArrowLeft, Trash2, Download } from "lucide-react";
+import { Loader2, ArrowLeft, Trash2, Download, Phone } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-
-/* ================= TYPES ================= */
 
 interface Profile {
   user_id: string;
   full_name: string;
   email: string;
+  phone: string | null;
   approval_status: "pending" | "approved" | "rejected";
   created_at: string;
 }
@@ -29,8 +28,6 @@ interface ProgressRow {
   percent: number;
 }
 
-/* ================= COMPONENT ================= */
-
 export default function Admin() {
   const navigate = useNavigate();
   const { isAdmin, isLoading: authLoading, session } = useAuth();
@@ -38,8 +35,6 @@ export default function Admin() {
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [progress, setProgress] = useState<ProgressRow[]>([]);
   const [loading, setLoading] = useState(true);
-
-  /* ================= ACCESS GUARD ================= */
 
   useEffect(() => {
     if (!authLoading && !isAdmin) navigate("/");
@@ -55,8 +50,6 @@ export default function Admin() {
     setLoading(false);
   };
 
-  /* ================= LOAD PROFILES ================= */
-
   const loadProfiles = async () => {
     const { data, error } = await supabase
       .from("profiles")
@@ -70,8 +63,6 @@ export default function Admin() {
 
     setProfiles(data || []);
   };
-
-  /* ================= LOAD PROGRESS ================= */
 
   const loadProgress = async () => {
     const { data: users } = await supabase
@@ -103,8 +94,6 @@ export default function Admin() {
     setProgress(result.sort((a, b) => b.completed - a.completed));
   };
 
-  /* ================= APPROVE / REJECT ================= */
-
   const updateApproval = async (
     userId: string,
     status: "approved" | "rejected"
@@ -127,8 +116,6 @@ export default function Admin() {
     loadAll();
   };
 
-  /* ================= REMOVE USER ================= */
-
   const removeUser = async (userId: string) => {
     await supabase.from("reading_progress").delete().eq("user_id", userId);
     await supabase
@@ -139,8 +126,6 @@ export default function Admin() {
     toast({ title: "User removed" });
     loadAll();
   };
-
-  /* ================= EXPORT ================= */
 
   const exportData = async () => {
     if (!session?.access_token) {
@@ -184,114 +169,151 @@ export default function Admin() {
 
   if (authLoading || loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin" />
+      <div className="min-h-screen flex items-center justify-center gradient-bg">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
 
   const pending = profiles.filter(p => p.approval_status === "pending");
 
-  /* ================= UI ================= */
-
   return (
-    <div className="min-h-screen px-4 py-6">
-      <header className="flex justify-between mb-4">
-        <Button variant="ghost" onClick={() => navigate("/")}>
-          <ArrowLeft className="mr-2" /> Back
-        </Button>
+    <div className="min-h-screen gradient-bg px-4 py-6">
+      <div className="gradient-orb gradient-orb-1" />
+      <div className="gradient-orb gradient-orb-2" />
+      
+      <div className="relative z-10">
+        <header className="flex justify-between mb-6">
+          <Button variant="ghost" onClick={() => navigate("/")}>
+            <ArrowLeft className="mr-2" /> Back
+          </Button>
 
-        <Button onClick={exportData}>
-          <Download className="mr-2" /> Export
-        </Button>
-      </header>
+          <Button onClick={exportData} className="glow-primary">
+            <Download className="mr-2" /> Export
+          </Button>
+        </header>
 
-      <Tabs defaultValue="pending">
-        <TabsList className="grid grid-cols-3 mb-4">
-          <TabsTrigger value="pending">Pending</TabsTrigger>
-          <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="all">All Users</TabsTrigger>
-        </TabsList>
+        <h1 className="text-2xl font-semibold mb-6 gradient-text">Admin Panel</h1>
 
-        {/* ===== PENDING USERS ===== */}
-        <TabsContent value="pending">
-          <ScrollArea className="h-[80vh] pr-4">
-            {pending.map(u => (
-              <Card
-                key={u.user_id}
-                className="mb-3 p-4 flex justify-between items-center"
-              >
-                <div>
-                  <p className="font-semibold">{u.full_name}</p>
-                  <p className="text-sm text-muted-foreground">{u.email}</p>
-                </div>
+        <Tabs defaultValue="pending">
+          <TabsList className="grid grid-cols-3 mb-4 bg-secondary/50 border border-border/50">
+            <TabsTrigger value="pending" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Pending ({pending.length})
+            </TabsTrigger>
+            <TabsTrigger value="progress" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              Progress
+            </TabsTrigger>
+            <TabsTrigger value="all" className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground">
+              All Users
+            </TabsTrigger>
+          </TabsList>
 
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => updateApproval(u.user_id, "approved")}
-                  >
-                    Approve
-                  </Button>
+          {/* PENDING USERS */}
+          <TabsContent value="pending" className="animate-fade-in">
+            <ScrollArea className="h-[75vh] pr-4">
+              {pending.map(u => (
+                <Card
+                  key={u.user_id}
+                  className="mb-3 p-4 flex justify-between items-center glass border-border/50"
+                >
+                  <div>
+                    <p className="font-semibold">{u.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                    {u.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <Phone className="w-3 h-3" /> {u.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => updateApproval(u.user_id, "approved")}
+                      className="bg-green-600 hover:bg-green-700"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => updateApproval(u.user_id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+
+              {pending.length === 0 && (
+                <p className="text-center text-muted-foreground mt-10">
+                  No pending users
+                </p>
+              )}
+            </ScrollArea>
+          </TabsContent>
+
+          {/* PROGRESS */}
+          <TabsContent value="progress" className="animate-fade-in">
+            <ScrollArea className="h-[75vh] pr-4">
+              {progress.map(u => (
+                <Card key={u.user_id} className="p-4 mb-3 glass border-border/50">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <p className="font-semibold">{u.full_name}</p>
+                      <p className="text-sm text-muted-foreground">{u.email}</p>
+                    </div>
+                    <Badge variant="secondary">
+                      {u.completed} / 365 ({u.percent}%)
+                    </Badge>
+                  </div>
+                  
+                  <div className="h-2 bg-secondary rounded-full mt-3 overflow-hidden">
+                    <div
+                      className="h-full bg-gradient-to-r from-primary to-primary-glow transition-all"
+                      style={{ width: `${u.percent}%` }}
+                    />
+                  </div>
+
                   <Button
                     size="sm"
                     variant="destructive"
-                    onClick={() => updateApproval(u.user_id, "rejected")}
+                    className="mt-3"
+                    onClick={() => removeUser(u.user_id)}
                   >
-                    Reject
+                    <Trash2 className="mr-2 w-4 h-4" />
+                    Remove User
                   </Button>
-                </div>
-              </Card>
-            ))}
+                </Card>
+              ))}
+            </ScrollArea>
+          </TabsContent>
 
-            {pending.length === 0 && (
-              <p className="text-center text-muted-foreground mt-10">
-                No pending users
-              </p>
-            )}
-          </ScrollArea>
-        </TabsContent>
-
-        {/* ===== PROGRESS ===== */}
-        <TabsContent value="progress">
-          <ScrollArea className="h-[80vh] pr-4">
-            {progress.map(u => (
-              <Card key={u.user_id} className="p-4 mb-3">
-                <p className="font-semibold">{u.full_name}</p>
-                <p className="text-sm text-muted-foreground">{u.email}</p>
-                <p className="mt-1">
-                  {u.completed} / 365 ({u.percent}%)
-                </p>
-
-                <Button
-                  size="sm"
-                  variant="destructive"
-                  className="mt-3"
-                  onClick={() => removeUser(u.user_id)}
-                >
-                  <Trash2 className="mr-2 w-4 h-4" />
-                  Remove User
-                </Button>
-              </Card>
-            ))}
-          </ScrollArea>
-        </TabsContent>
-
-        {/* ===== ALL USERS ===== */}
-        <TabsContent value="all">
-          <ScrollArea className="h-[80vh] pr-4">
-            {profiles.map(u => (
-              <Card key={u.user_id} className="p-4 mb-3 flex justify-between">
-                <div>
-                  <p className="font-medium">{u.full_name}</p>
-                  <p className="text-sm text-muted-foreground">{u.email}</p>
-                </div>
-                <Badge>{u.approval_status}</Badge>
-              </Card>
-            ))}
-          </ScrollArea>
-        </TabsContent>
-      </Tabs>
+          {/* ALL USERS */}
+          <TabsContent value="all" className="animate-fade-in">
+            <ScrollArea className="h-[75vh] pr-4">
+              {profiles.map(u => (
+                <Card key={u.user_id} className="p-4 mb-3 flex justify-between glass border-border/50">
+                  <div>
+                    <p className="font-medium">{u.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                    {u.phone && (
+                      <p className="text-xs text-muted-foreground flex items-center gap-1 mt-1">
+                        <Phone className="w-3 h-3" /> {u.phone}
+                      </p>
+                    )}
+                  </div>
+                  <Badge 
+                    variant={u.approval_status === 'approved' ? 'default' : u.approval_status === 'pending' ? 'secondary' : 'destructive'}
+                  >
+                    {u.approval_status}
+                  </Badge>
+                </Card>
+              ))}
+            </ScrollArea>
+          </TabsContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

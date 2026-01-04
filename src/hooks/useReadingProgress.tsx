@@ -11,8 +11,6 @@ export const useReadingProgress = () => {
 
   const inFlight = useRef<Set<number>>(new Set());
 
-  /* ================= FETCH ================= */
-
   const fetchProgress = useCallback(async () => {
     if (!user || !isApproved) {
       setProgress(new Map());
@@ -47,8 +45,6 @@ export const useReadingProgress = () => {
   useEffect(() => {
     fetchProgress();
   }, [fetchProgress]);
-
-  /* ================= MARK COMPLETE ================= */
 
   const markComplete = async (day: number) => {
     if (!user || !isApproved) return;
@@ -89,8 +85,6 @@ export const useReadingProgress = () => {
     fetchProgress();
   };
 
-  /* ================= MARK INCOMPLETE ================= */
-
   const markIncomplete = async (day: number) => {
     if (!user || !isApproved) return;
     if (!progress.has(day)) return;
@@ -115,7 +109,7 @@ export const useReadingProgress = () => {
       console.error(error);
       setProgress(prev => new Map(prev).set(day, true));
       toast({
-        title: "Failed to undo",
+        title: "Failed to unmark",
         description: error.message,
         variant: "destructive",
       });
@@ -125,33 +119,30 @@ export const useReadingProgress = () => {
     fetchProgress();
   };
 
-  /* ================= STATS ================= */
-
   const completedCount = progress.size;
   const progressPercentage = (completedCount / 365) * 100;
 
-  /* 🔒 FINAL MISSED LOGIC (GAP-BASED, NOT DATE-BASED) */
-  const missedDays = (() => {
-    if (progress.size === 0) return [];
+  const missedDays: number[] = [];
+  const today = new Date();
+  const startOfYear = new Date(today.getFullYear(), 0, 1);
+  const dayOfYear = Math.ceil(
+    (today.getTime() - startOfYear.getTime()) / (1000 * 60 * 60 * 24)
+  );
 
-    const maxCompletedDay = Math.max(...Array.from(progress.keys()));
-    const missed: number[] = [];
-
-    for (let d = 1; d <= maxCompletedDay; d++) {
-      if (!progress.has(d)) missed.push(d);
+  for (let i = 1; i < dayOfYear && i <= 365; i++) {
+    if (!progress.has(i)) {
+      missedDays.push(i);
     }
-
-    return missed;
-  })();
+  }
 
   return {
     progress,
-    isLoading,
     markComplete,
     markIncomplete,
     completedCount,
     progressPercentage,
     missedDays,
-    refreshProgress: fetchProgress,
+    isLoading,
+    refetch: fetchProgress,
   };
 };

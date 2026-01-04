@@ -21,10 +21,14 @@ interface AuthContextType {
   isApproved: boolean;
   isPending: boolean;
   isLoading: boolean;
-  signUp: (email: string, password: string, fullName: string, phone?: string) => Promise<{ error: Error | null }>;
+  needsPhoneNumber: boolean;
+  signUp: (email: string, password: string, fullName: string, phone: string) => Promise<{ error: Error | null }>;
   signIn: (email: string, password: string) => Promise<{ error: Error | null }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  updatePhoneNumber: (phone: string) => Promise<{ error: Error | null }>;
+  resetPassword: (email: string) => Promise<{ error: Error | null }>;
+  updatePassword: (newPassword: string) => Promise<{ error: Error | null }>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -67,13 +71,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Defer Supabase calls with setTimeout
         if (session?.user) {
           setTimeout(() => {
             fetchProfile(session.user.id);
@@ -88,7 +90,6 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       }
     );
 
-    // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
@@ -104,7 +105,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (email: string, password: string, fullName: string, phone?: string) => {
+  const signUp = async (email: string, password: string, fullName: string, phone: string) => {
     const redirectUrl = `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
@@ -114,7 +115,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         emailRedirectTo: redirectUrl,
         data: {
           full_name: fullName,
-          phone: phone || null,
+          phone: phone,
         },
       },
     });
@@ -137,8 +138,42 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     setIsAdmin(false);
   };
 
+  const updatePhoneNumber = async (phone: string) => {
+    if (!user) return { error: new Error('No user logged in') };
+    
+    const { error } = await supabase
+      .from('profiles')
+      .update({ phone, updated_at: new Date().toISOString() })
+      .eq('user_id', user.id);
+
+    if (!error) {
+      await refreshProfile();
+    }
+
+    return { error: error as Error | null };
+  };
+
+  const resetPassword = async (email: string) => {
+    const redirectUrl = `${window.location.origin}/reset-password`;
+    
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: redirectUrl,
+    });
+
+    return { error: error as Error | null };
+  };
+
+  const updatePassword = async (newPassword: string) => {
+    const { error } = await supabase.auth.updateUser({
+      password: newPassword,
+    });
+
+    return { error: error as Error | null };
+  };
+
   const isApproved = profile?.approval_status === 'approved';
   const isPending = profile?.approval_status === 'pending';
+  const needsPhoneNumber = !!profile && (!profile.phone || profile.phone.trim() === '');
 
   return (
     <AuthContext.Provider
@@ -150,10 +185,14 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isApproved,
         isPending,
         isLoading,
+        needsPhoneNumber,
         signUp,
         signIn,
         signOut,
         refreshProfile,
+        updatePhoneNumber,
+        resetPassword,
+        updatePassword,
       }}
     >
       {children}

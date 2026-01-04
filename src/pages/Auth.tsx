@@ -1,19 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from '@/hooks/use-toast';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Phone } from 'lucide-react';
 import { z } from 'zod';
-import bethesdaLogo from '@/assets/bethesda-logo.png';
 
 const signUpSchema = z.object({
   fullName: z.string().min(2, 'Name must be at least 2 characters').max(100),
   email: z.string().email('Invalid email address'),
-  phone: z.string().optional(),
+  phone: z.string()
+    .min(10, 'Phone number must be at least 10 digits')
+    .max(20, 'Phone number is too long')
+    .regex(/^[\d\s\+\-\(\)]+$/, 'Please enter a valid phone number'),
   password: z.string().min(6, 'Password must be at least 6 characters'),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
@@ -144,7 +146,7 @@ export default function Auth() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center gradient-bg">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
@@ -157,18 +159,16 @@ export default function Auth() {
       <div className="gradient-orb gradient-orb-2" />
       <div className="gradient-orb gradient-orb-3" />
       
-      <div className="w-full max-w-sm relative z-10">
-        {/* Floating Header */}
+      <div className="w-full max-w-sm relative z-10 animate-fade-in">
+        {/* Header */}
         <div className="text-center mb-10">
           <div className="inline-block mb-6 animate-float">
-            <img 
-              src={bethesdaLogo} 
-              alt="Bethesda Church Logo" 
-              className="w-24 h-24 object-contain"
-            />
+            <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center glow-primary">
+              <span className="text-4xl">📖</span>
+            </div>
           </div>
-          <h1 className="text-3xl font-light tracking-tight text-white mb-2">
-            Bethesda <span className="italic font-normal bg-gradient-to-r from-pink-400 via-purple-400 to-blue-400 bg-clip-text text-transparent">Bible Tracker</span>
+          <h1 className="text-3xl font-light tracking-tight text-foreground mb-2">
+            Bethesda <span className="italic font-normal gradient-text">Bible Tracker</span>
           </h1>
           <p className="text-muted-foreground text-sm">
             Join the 365-day Bible reading journey
@@ -177,16 +177,23 @@ export default function Auth() {
         
         {/* Floating Form */}
         <Tabs defaultValue="signin" className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8 bg-white/5 backdrop-blur-sm border border-white/10">
-            <TabsTrigger value="signin" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+          <TabsList className="grid w-full grid-cols-2 mb-8 bg-secondary/50 backdrop-blur-sm border border-border/50">
+            <TabsTrigger 
+              value="signin" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+            >
               Sign In
             </TabsTrigger>
-            <TabsTrigger value="signup" className="data-[state=active]:bg-[#0066FF] data-[state=active]:text-white">
+            <TabsTrigger 
+              value="signup" 
+              className="data-[state=active]:bg-primary data-[state=active]:text-primary-foreground transition-all duration-300"
+            >
               Sign Up
             </TabsTrigger>
           </TabsList>
           
-          <TabsContent value="signin">
+          {/* Sign In Tab */}
+          <TabsContent value="signin" className="animate-fade-in">
             <form onSubmit={handleSignIn} className="space-y-5">
               <div className="space-y-2">
                 <Label htmlFor="signin-email" className="text-foreground/80">Email</Label>
@@ -197,12 +204,20 @@ export default function Auth() {
                   value={signInData.email}
                   onChange={(e) => setSignInData({ ...signInData, email: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="signin-password" className="text-foreground/80">Password</Label>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="signin-password" className="text-foreground/80">Password</Label>
+                  <Link 
+                    to="/forgot-password" 
+                    className="text-xs text-primary hover:text-primary/80 hover:underline transition-colors"
+                  >
+                    Forgot password?
+                  </Link>
+                </div>
                 <Input
                   id="signin-password"
                   type="password"
@@ -210,13 +225,13 @@ export default function Auth() {
                   value={signInData.password}
                   onChange={(e) => setSignInData({ ...signInData, password: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
               <Button
                 type="submit"
-                className="w-full bg-[#0066FF] hover:bg-[#0052CC] text-white font-semibold h-12 mt-2"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 mt-2 glow-primary transition-all duration-300"
                 disabled={isLoading}
               >
                 {isLoading ? (
@@ -227,7 +242,8 @@ export default function Auth() {
             </form>
           </TabsContent>
           
-          <TabsContent value="signup">
+          {/* Sign Up Tab */}
+          <TabsContent value="signup" className="animate-fade-in">
             <form onSubmit={handleSignUp} className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-name" className="text-foreground/80">Full Name</Label>
@@ -238,7 +254,7 @@ export default function Auth() {
                   value={signUpData.fullName}
                   onChange={(e) => setSignUpData({ ...signUpData, fullName: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
@@ -251,20 +267,28 @@ export default function Auth() {
                   value={signUpData.email}
                   onChange={(e) => setSignUpData({ ...signUpData, email: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="signup-phone" className="text-foreground/80">Phone (optional)</Label>
+                <Label htmlFor="signup-phone" className="text-foreground/80 flex items-center gap-2">
+                  <Phone className="w-4 h-4" />
+                  Phone Number
+                  <span className="text-destructive">*</span>
+                </Label>
                 <Input
                   id="signup-phone"
                   type="tel"
                   placeholder="+1 234 567 8900"
                   value={signUpData.phone}
                   onChange={(e) => setSignUpData({ ...signUpData, phone: e.target.value })}
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  required
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
+                <p className="text-xs text-muted-foreground">
+                  Required for important notifications
+                </p>
               </div>
               
               <div className="space-y-2">
@@ -276,7 +300,7 @@ export default function Auth() {
                   value={signUpData.password}
                   onChange={(e) => setSignUpData({ ...signUpData, password: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
@@ -289,13 +313,13 @@ export default function Auth() {
                   value={signUpData.confirmPassword}
                   onChange={(e) => setSignUpData({ ...signUpData, confirmPassword: e.target.value })}
                   required
-                  className="bg-white/5 backdrop-blur-sm border-white/10 focus:border-[#0066FF] h-12"
+                  className="bg-secondary/30 backdrop-blur-sm border-border/50 focus:border-primary h-12"
                 />
               </div>
               
               <Button
                 type="submit"
-                className="w-full bg-[#0066FF] hover:bg-[#0052CC] text-white font-semibold h-12 mt-2"
+                className="w-full bg-primary hover:bg-primary/90 text-primary-foreground font-semibold h-12 mt-2 glow-primary transition-all duration-300"
                 disabled={isLoading}
               >
                 {isLoading ? (
