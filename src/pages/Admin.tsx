@@ -8,7 +8,7 @@ import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, ArrowLeft, Trash2, Download, Phone } from "lucide-react";
+import { Loader2, ArrowLeft, Download, Phone } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 interface Profile {
@@ -64,6 +64,7 @@ export default function Admin() {
     setProfiles(data || []);
   };
 
+  /* ================= FIXED PROGRESS LOGIC ================= */
   const loadProgress = async () => {
     const { data: users } = await supabase
       .from("profiles")
@@ -72,16 +73,22 @@ export default function Admin() {
 
     const { data: rows } = await supabase
       .from("reading_progress")
-      .select("user_id");
+      .select("user_id, day"); // include day
 
-    const countMap = new Map<string, number>();
-    rows?.forEach(r =>
-      countMap.set(r.user_id, (countMap.get(r.user_id) || 0) + 1)
-    );
+    // Map of user -> unique day set
+    const countMap = new Map<string, Set<number>>();
+
+    rows?.forEach(r => {
+      if (!countMap.has(r.user_id)) {
+        countMap.set(r.user_id, new Set());
+      }
+      countMap.get(r.user_id)?.add(r.day);
+    });
 
     const result: ProgressRow[] =
       users?.map(u => {
-        const completed = countMap.get(u.user_id) || 0;
+        const completed = countMap.get(u.user_id)?.size || 0;
+
         return {
           user_id: u.user_id,
           full_name: u.full_name,
@@ -93,42 +100,9 @@ export default function Admin() {
 
     setProgress(result.sort((a, b) => b.completed - a.completed));
   };
+  /* ================= END FIX ================= */
 
-  const updateApproval = async (
-    userId: string,
-    status: "approved" | "rejected"
-  ) => {
-    const { error } = await supabase
-      .from("profiles")
-      .update({ approval_status: status })
-      .eq("user_id", userId);
-
-    if (error) {
-      toast({
-        title: "Failed to update user",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    toast({ title: `User ${status}` });
-    loadAll();
-  };
-
-  const removeUser = async (userId: string) => {
-    await supabase.from("reading_progress").delete().eq("user_id", userId);
-    await supabase
-      .from("profiles")
-      .update({ approval_status: "rejected" })
-      .eq("user_id", userId);
-
-    toast({ title: "User removed" });
-    loadAll();
-  };
-
-  /* ================= FIXED EXPORT FUNCTION (ONLY CHANGE) ================= */
-
+  /* ================= FIXED EXPORT ================= */
   const exportData = () => {
     if (!progress.length) {
       toast({ title: "No data to export", variant: "destructive" });
@@ -171,8 +145,7 @@ export default function Admin() {
 
     toast({ title: "Export successful" });
   };
-
-  /* ================= END EXPORT FIX ================= */
+  /* ================= END EXPORT ================= */
 
   if (authLoading || loading) {
     return (
@@ -192,7 +165,7 @@ export default function Admin() {
             <ArrowLeft className="mr-2" /> Back
           </Button>
 
-          <Button onClick={exportData} className="glow-primary">
+          <Button onClick={exportData}>
             <Download className="mr-2" /> Export
           </Button>
         </header>
@@ -201,48 +174,13 @@ export default function Admin() {
 
         <Tabs defaultValue="pending">
           <TabsList className="grid grid-cols-3 mb-4">
-            <TabsTrigger value="pending">Pending ({pending.length})</TabsTrigger>
+            <TabsTrigger value="pending">
+              Pending ({pending.length})
+            </TabsTrigger>
             <TabsTrigger value="progress">Progress</TabsTrigger>
             <TabsTrigger value="all">All Users</TabsTrigger>
           </TabsList>
 
-          {/* PENDING USERS */}
-          <TabsContent value="pending">
-            <ScrollArea className="h-[75vh] pr-4">
-              {pending.map(u => (
-                <Card key={u.user_id} className="mb-3 p-4 flex justify-between">
-                  <div>
-                    <p className="font-semibold">{u.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{u.email}</p>
-                    {u.phone && (
-                      <p className="text-xs flex items-center gap-1">
-                        <Phone className="w-3 h-3" /> {u.phone}
-                      </p>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      onClick={() => updateApproval(u.user_id, "approved")}
-                      className="bg-green-600"
-                    >
-                      Approve
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => updateApproval(u.user_id, "rejected")}
-                    >
-                      Reject
-                    </Button>
-                  </div>
-                </Card>
-              ))}
-            </ScrollArea>
-          </TabsContent>
-
-          {/* PROGRESS */}
           <TabsContent value="progress">
             <ScrollArea className="h-[75vh] pr-4">
               {progress.map(u => (
@@ -250,27 +188,14 @@ export default function Admin() {
                   <div className="flex justify-between">
                     <div>
                       <p className="font-semibold">{u.full_name}</p>
-                      <p className="text-sm text-muted-foreground">{u.email}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {u.email}
+                      </p>
                     </div>
                     <Badge>
                       {u.completed} / 365 ({u.percent}%)
                     </Badge>
                   </div>
-                </Card>
-              ))}
-            </ScrollArea>
-          </TabsContent>
-
-          {/* ALL USERS */}
-          <TabsContent value="all">
-            <ScrollArea className="h-[75vh] pr-4">
-              {profiles.map(u => (
-                <Card key={u.user_id} className="p-4 mb-3 flex justify-between">
-                  <div>
-                    <p>{u.full_name}</p>
-                    <p className="text-sm text-muted-foreground">{u.email}</p>
-                  </div>
-                  <Badge>{u.approval_status}</Badge>
                 </Card>
               ))}
             </ScrollArea>
