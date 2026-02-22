@@ -64,45 +64,42 @@ export default function Admin() {
     setProfiles(data || []);
   };
 
-  /* ================= FIXED PROGRESS LOGIC ================= */
+  /* ================= RPC-BASED PROGRESS (FINAL FIX) ================= */
   const loadProgress = async () => {
-    const { data: users } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, email")
-      .eq("approval_status", "approved");
+    const { data, error } = await supabase.rpc("admin_progress_summary");
 
-    const { data: rows } = await supabase
-      .from("reading_progress")
-      .select("user_id, day"); // include day
+    if (error) {
+      console.error(error);
+      toast({ title: "Failed to load progress", variant: "destructive" });
+      return;
+    }
 
-    // Map of user -> unique day set
-    const countMap = new Map<string, Set<number>>();
-
-    rows?.forEach(r => {
-      if (!countMap.has(r.user_id)) {
-        countMap.set(r.user_id, new Set());
-      }
-      countMap.get(r.user_id)?.add(r.day);
-    });
-
-    const result: ProgressRow[] =
-      users?.map(u => {
-        const completed = countMap.get(u.user_id)?.size || 0;
-
-        return {
-          user_id: u.user_id,
-          full_name: u.full_name,
-          email: u.email,
-          completed,
-          percent: Number(((completed / 365) * 100).toFixed(2)),
-        };
-      }) || [];
-
-    setProgress(result.sort((a, b) => b.completed - a.completed));
+    setProgress(data || []);
   };
-  /* ================= END FIX ================= */
+  /* ================= END RPC FIX ================= */
 
-  /* ================= FIXED EXPORT ================= */
+  const updateApproval = async (
+    userId: string,
+    status: "approved" | "rejected"
+  ) => {
+    const { error } = await supabase
+      .from("profiles")
+      .update({ approval_status: status })
+      .eq("user_id", userId);
+
+    if (error) {
+      toast({
+        title: "Failed to update user",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({ title: `User ${status}` });
+    loadAll();
+  };
+
   const exportData = () => {
     if (!progress.length) {
       toast({ title: "No data to export", variant: "destructive" });
@@ -145,7 +142,6 @@ export default function Admin() {
 
     toast({ title: "Export successful" });
   };
-  /* ================= END EXPORT ================= */
 
   if (authLoading || loading) {
     return (
@@ -196,6 +192,55 @@ export default function Admin() {
                       {u.completed} / 365 ({u.percent}%)
                     </Badge>
                   </div>
+                </Card>
+              ))}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="pending">
+            <ScrollArea className="h-[75vh] pr-4">
+              {pending.map(u => (
+                <Card key={u.user_id} className="mb-3 p-4 flex justify-between">
+                  <div>
+                    <p className="font-semibold">{u.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                    {u.phone && (
+                      <p className="text-xs flex items-center gap-1">
+                        <Phone className="w-3 h-3" /> {u.phone}
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() => updateApproval(u.user_id, "approved")}
+                      className="bg-green-600"
+                    >
+                      Approve
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => updateApproval(u.user_id, "rejected")}
+                    >
+                      Reject
+                    </Button>
+                  </div>
+                </Card>
+              ))}
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="all">
+            <ScrollArea className="h-[75vh] pr-4">
+              {profiles.map(u => (
+                <Card key={u.user_id} className="p-4 mb-3 flex justify-between">
+                  <div>
+                    <p>{u.full_name}</p>
+                    <p className="text-sm text-muted-foreground">{u.email}</p>
+                  </div>
+                  <Badge>{u.approval_status}</Badge>
                 </Card>
               ))}
             </ScrollArea>
